@@ -341,16 +341,21 @@
 
     <!-- 提示词格式配置 -->
     <div style="margin-top:14px;border-top:1px dashed #cbd5e1;padding-top:12px">
-      <div class="hint" style="margin-bottom:8px">「发送格式」是发给豆包的完整提示词，<b>{素材内容}</b> 处会自动替换为素材正文；「生成格式」随提示词一起发给豆包，作为 B 层笔记的输出格式要求。保存后写回知识库 <b>05规则模板/</b> 目录。</div>
+      <div class="hint" style="margin-bottom:8px">「发送格式」是发给豆包的完整提示词，<b>{素材内容}</b> 处会自动替换为素材正文。保存后写回知识库 <b>05规则模板/</b> 目录。</div>
       <div style="margin-bottom:4px"><label style="font-size:14px;font-weight:600">发送格式（发给豆包的提示词）</label></div>
       <textarea id="promptSend" rows="14" spellcheck="false"
-        style="width:100%;font-family:ui-monospace,Consolas,monospace;font-size:13px;line-height:1.5;resize:vertical;box-sizing:border-box"></textarea>
-      <div style="margin:10px 0 4px"><label style="font-size:14px;font-weight:600">生成格式（B 层笔记格式要求，随提示词发给豆包）</label></div>
-      <textarea id="promptNote" rows="10" spellcheck="false"
         style="width:100%;font-family:ui-monospace,Consolas,monospace;font-size:13px;line-height:1.5;resize:vertical;box-sizing:border-box"></textarea>
       <div style="margin-top:8px">
         <button class="btn" id="btnPromptSave">保存提示词格式</button>
       </div>
+    </div>
+
+    <!-- B 层笔记生成逻辑与结构（只读参考） -->
+    <div style="margin-top:14px;border-top:1px dashed #cbd5e1;padding-top:12px">
+      <div style="margin-bottom:4px"><label style="font-size:14px;font-weight:600">B层知识提炼文件的生成逻辑与结构（只读参考）</label></div>
+      <div class="hint" style="margin-bottom:8px">以下为 B 层笔记的固定组成部分与拼接方式（依据 D 层规范），<b>不可编辑</b>；豆包按「发送格式」提示词严格生成，程序侧仅负责解析一句话总结、组装文件名并保存。</div>
+      <textarea id="genSpec" rows="18" readonly spellcheck="false"
+        style="width:100%;font-family:ui-monospace,Consolas,monospace;font-size:13px;line-height:1.5;resize:vertical;box-sizing:border-box;color:#475569;background:#f8fafc"></textarea>
     </div>
 
     <div class="hint" id="dbTip" style="color:var(--accent-d);display:none">⏳ 正在等待您把鼠标移到指定位置……</div>
@@ -376,6 +381,16 @@
       <button class="btn" id="btnDirSave">保存存放位置</button>
     </div>
     <div class="hint">目录名相对于知识库根目录，例如填「我的笔记」就是 <b>知识库/我的笔记</b>。</div>
+
+    <!-- 调试模式 -->
+    <div style="margin-top:16px;border-top:1px dashed #cbd5e1;padding-top:12px">
+      <div style="margin-bottom:4px"><label style="font-size:14px;font-weight:600">调试模式</label></div>
+      <div class="hint" style="margin-bottom:8px">开启后，豆包整理将<b>跳过链接引擎 / MOC / 处理报告</b>；点「复位」可撤销调试期间的全部操作：删除新建的笔记/MOC/日志，并把已处理素材移回 <b>01未处理</b>。调试期请用网页「豆包自动整理」，勿用命令行 sync（会污染既有笔记的相关笔记区块）。</div>
+      <div class="row">
+        <label style="font-size:14px;margin-right:16px;display:flex;align-items:center;gap:6px"><input type="checkbox" id="debugEnabled">开启调试模式</label>
+        <button class="btn danger" id="btnDebugReset" style="display:none">复位</button>
+      </div>
+    </div>
   </div>
 
   <!-- ⑦ 运行日志 -->
@@ -479,12 +494,22 @@ async function refreshStatus() {
   if (s && s.ok) {
     renderStatus(s);
     renderDoubao(s);
+    renderDebug(s);
     if (!dirsLoaded) { fillDirs(s.dirs); dirsLoaded = true; }
     if (!promptsLoaded) { fillPrompts(s.prompts); promptsLoaded = true; }
+    if (!genSpecLoaded && s.gen_spec) { $("genSpec").value = s.gen_spec; genSpecLoaded = true; }
   }
 }
 
 let dirsLoaded = false;
+let genSpecLoaded = false;
+let debugTouched = false;
+function renderDebug(s) {
+  const dbg = s.debug || { enabled: false, snapshot: {} };
+  if (!debugTouched) $("debugEnabled").checked = !!dbg.enabled;
+  $("btnDebugReset").style.display = dbg.enabled ? "inline-block" : "none";
+  $("btnDebugReset").disabled = !!s.busy;
+}
 function fillDirs(dirs) {
   if (!dirs) return;
   if (dirs["笔记"] !== undefined) $("dirNote").value = dirs["笔记"] || "";
@@ -496,7 +521,6 @@ let promptsLoaded = false;
 function fillPrompts(prompts) {
   if (!prompts) return;
   if (prompts.send_format !== undefined) $("promptSend").value = prompts.send_format || "";
-  if (prompts.note_format !== undefined) $("promptNote").value = prompts.note_format || "";
 }
 
 function renderDoubao(s) {
@@ -729,11 +753,30 @@ $("btnDirSave").onclick = async () => {
   else toast(r.error || "保存失败", false);
 };
 
+// ---- 高级设置：调试模式 ----
+$("debugEnabled").onchange = async () => {
+  debugTouched = true;
+  const on = $("debugEnabled").checked;
+  const r = await api("/api/debug/toggle", { enabled: on });
+  if (r && r.ok) {
+    toast(on ? "调试模式已开启 ✓（已记录目录快照）" : "调试模式已关闭");
+    renderStatus(r.status);
+    renderDebug(r.status);
+  } else if (!r) toast("无法连接服务，请先双击启动 bat", false);
+  else { toast(r.error || "操作失败", false); $("debugEnabled").checked = !on; }
+};
+$("btnDebugReset").onclick = async () => {
+  if (!confirm("确定复位？\n将删除调试期间新建的笔记/MOC/日志，并把已处理素材移回 01未处理。")) return;
+  const r = await api("/api/debug/reset", {});
+  if (r && r.ok) toast("已开始复位，请查看下方运行日志");
+  else if (!r) toast("无法连接服务，请先双击启动 bat", false);
+  else toast(r.error || "复位失败", false);
+};
+
 $("btnPromptSave").onclick = async () => {
   busy($("btnPromptSave"), "保存中…");
   const r = await api("/api/prompts", {
     send_format: $("promptSend").value,
-    note_format: $("promptNote").value,
   });
   idle($("btnPromptSave"));
   if (r && r.ok) toast("提示词格式已保存 ✓（已写回知识库 05规则模板/）");

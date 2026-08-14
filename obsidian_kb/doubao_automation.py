@@ -479,13 +479,11 @@ def _list_materials(sources: List[str]) -> List[Tuple[str, str]]:
 
 
 def build_prompt(material_text: str, vault_root: str, cfg: Dict[str, Any],
-                 send_format: Optional[str] = None,
-                 note_format: Optional[str] = None) -> str:
+                 send_format: Optional[str] = None) -> str:
     """构造发送给豆包的完整提示词。
 
     模板来源优先级：GUI 配置 send_format → D 层「豆包知识提炼提示词.md」→ 内置默认。
     素材正文插到占位符 {素材内容} 处；无占位符则追加到末尾。
-    note_format 作为「生成格式」要求随提示词一并发给豆包。
     """
     material = material_text.strip()
     if send_format and str(send_format).strip():
@@ -509,8 +507,6 @@ def build_prompt(material_text: str, vault_root: str, cfg: Dict[str, Any],
         prompt = template.replace("{素材内容}", material)
     else:
         prompt = template.rstrip() + "\n\n" + material
-    if note_format and str(note_format).strip():
-        prompt = prompt.rstrip() + "\n\n" + str(note_format).strip()
     return prompt
 
 
@@ -552,8 +548,7 @@ def refine_loop(cfg: Dict[str, Any], vault_root: str, coords: Dict[str, Dict[str
                 wait_seconds: int = 30, max_items: Optional[int] = None,
                 stop_event: Optional[Any] = None,
                 on_item: Optional[Any] = None,
-                send_format: Optional[str] = None,
-                note_format: Optional[str] = None) -> None:
+                send_format: Optional[str] = None) -> None:
     """批量提炼主循环。stop_event 置位或用户按 Esc 即中断。"""
     if not coords or not all(k in coords for k in COORD_NAMES):
         raise ValueError("坐标不完整，请先依次记录输入框/下翻箭头/复制按钮坐标")
@@ -606,7 +601,7 @@ def refine_loop(cfg: Dict[str, Any], vault_root: str, coords: Dict[str, Dict[str
 
         logger.info("[豆包] (%d/%d) 正在提炼：%s", idx, len(files), fname)
         prompt = build_prompt(material, vault_root, cfg,
-                              send_format=send_format, note_format=note_format)
+                              send_format=send_format)
         ok = False
         for attempt in (1, 2):  # 失败自动重试一次
             try:

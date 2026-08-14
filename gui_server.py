@@ -14,7 +14,9 @@
   POST /api/init            创建知识库
   POST /api/upload          上传资料到未处理（base64 JSON）
   POST /api/inbox/delete    删除未处理文件（移入 _kb_回收站，可找回）
-  POST /api/prompts         保存豆包提示词格式（发送格式 / 生成格式）
+  POST /api/prompts         保存豆包提示词格式（发送格式）
+  POST /api/debug/toggle    开关调试模式（开启时记录各目录快照）
+  POST /api/debug/reset     调试复位：清除调试期间生成文件、已处理素材移回未处理
   POST /api/open            打开知识库文件夹
   POST /api/open_path       打开指定路径（第一步「知识库放在哪里」用）
   POST /api/open_report     打开处理报告
@@ -26,6 +28,7 @@ import itertools
 import json
 import logging
 import os
+import re
 import socket
 import subprocess
 import sys
@@ -95,92 +98,58 @@ type: 笔记
 5. **逻辑树**：可选
 6. **语言**：全部中文
 7. **简洁**：只输出笔记本身，无解释无问候。**不要用 ``` 代码块包围**
+8. **短内容**：素材有实际文字且少于300字 → 详细内容不强制600字，豆包自由发挥即可；纯链接（内容以 http 开头）不受此规则影响，仍要求不少于600字
 
 ---
 
 **未收录**：{素材内容}
 """
 
-NOTE_DEFAULT = """# B层知识提炼笔记 — 标准格式
+# B 层知识提炼笔记的生成逻辑与结构（只读展示，不参与生成）
+GEN_SPEC = """B层知识提炼笔记 — 生成逻辑与结构（只读参考）
 
-## 文件名规则
+【一、由哪些部分组成】（6 个固定部分，顺序不可变）
+1. frontmatter 元数据：type: 笔记；分类（最多6个）；原始链接（出处URL或说明）；作者（未知留空）
+2. 一级标题：# 一句话总结（4~20 个中文字符）
+3. 关键词行：**关键词**：8~18 个，逗号分隔（中英文混合，保持原样）
+4. 摘要行：**摘要**：浓缩核心内容，不超过 120 字
+5. 详细内容：## 详细内容 —— 不少于 600 字，分自然段，用自己的话重新组织，不能原文摘抄
+6. 逻辑树（可选）：## 逻辑树 —— 结构复杂的知识点用层级列表表达
 
-```
-一句话总结_YYYYMMDDHHMMSS.md
-```
+【二、拼接方式】
+文件名 = 一句话总结 + "_" + YYYYMMDDHHMMSS + ".md"
+  · 一句话总结：由豆包从素材提炼（4~20 字）
+  · 时间戳：取自 01未处理 素材文件名中的 14 位时间戳；无则取当前时间
+文件内容 = frontmatter + 标题 + 关键词 + 摘要 + 详细内容 + 逻辑树（依次拼接）
+  · 素材正文整体替换提示词中的 {素材内容} 占位符后发给豆包
+  · 豆包按上述结构一次性输出整篇笔记；程序只负责解析一句话总结、
+    去掉代码块包裹后原样保存，不做二次改写
 
-- **一句话总结**：4~20 个中文字符，由豆包从原文提炼
-- **YYYYMMDDHHMMSS**：未收录文件的时间戳（源自 `未处理` 目录下的时间戳文件名）
+【三、生成逻辑】（A 层 → B 层完整链路）
+1. 素材存入 01未处理/时间戳.md（A 层，只进不出）
+2. 豆包自动整理：按 01未处理 文件顺序逐个读取素材
+3. 组装提示词：发送格式模板（{素材内容} 处替换为素材正文）
+4. 键鼠自动化发送给豆包（豆包置顶在前，不碰鼠标键盘）
+5. 等待生成 → 复制回复 → 解析一句话总结、去代码块包裹
+6. 保存到 03知识提炼/一句话总结_时间戳.md（B 层，只删不改）
+7. 素材从 01未处理 移至 02已处理
+8. 全部完成后运行链接引擎：关键词全转小写精确匹配，共享 ≥3 个即建链，
+   每篇最多保留前 8 个链接，并链接到自身对应的已处理原文；再生成 MOC 索引
 
-## 文档内容结构
+【四、字段约束】
+· 分类：最多 6 个，由豆包自行归纳（技术原理、商业策略、学习方法等）
+· 关键词：8~18 个，逗号分隔，中英文混合
+· 摘要：≤120 字，是提炼后的核心梗概
+· 详细内容：≥600 字；素材有实际文字且少于 300 字时不强制，豆包自由发挥；
+  纯链接（以 http 开头）不受影响，仍要求 ≥600 字
+· 语言：全部中文；只输出笔记本身，无解释无问候
 
-```markdown
----
-type: 笔记
-分类: 技术原理， 商业策略
-原始链接: （URL或出处说明）
----
-
-# 一句话总结
-
-**关键词**：关键词1， 关键词2， ...
-
-**摘要**：浓缩后的核心内容（不超过120字）
-
-## 详细内容
-
-（正文部分，保留未收录素材的核心知识点，用自己的话重新组织）
-
-## 逻辑树（可选）
-
-- 主论点一
-  - 支撑论据/例子
-    - 更细节的信息
-- 主论点二
-  - 支撑论据/例子
-```
-
-## 字段规范
-
-| 字段 | 约束 | 说明 |
-|------|------|------|
-| 分类 | 最多6个 | 由豆包自行归纳，如：技术原理、商业策略、学习方法、系统设计、心理学等 |
-| 关键词 | 8~18 个 | 中文与英文混合，保持原样 |
-| 原始链接 | 原文链接/视频链接/直接内容/个人思考 | 追溯原始出处 |
-| 摘要 | 浓缩内容，≤120 字 | 不是一句话，是提炼后的核心梗概 |
-| 详细内容 | 不少于600字 | 分自然段书写，不能原文摘抄 |
-| 逻辑树 | 可选 | 结构复杂的知识点用层级表达 |
-
-## 链接规范
-
-- 链接引擎在全部新笔记处理完毕后统一运行，每篇笔记只写一次
-- 匹配规则：关键词全转小写后精确匹配，共享 ≥3 个相同关键词即建链
-- 每篇笔记最多保留前 8 个强相关链接
-- 新增笔记还需链接到其自身的未收录文件（位于 `已处理`）
-- 阈值（当前为 3）将来可通过参数调整
-
-## 短内容处理规则
-
-- 原文有实际文字且字数 < 300 字 → 详细内容不要求 ≥600 字，豆包自由发挥即可
-- 纯链接（内容以 http 开头）→ 不受此规则影响，仍然要求 ≥600 字
-
-## 维护纪律
-
-- 用户只删不改
-- 过时或错误的内容 → 直接删除笔记文件
-- 删除后产生的死链接 → 不予修复
-
-## 整体处理逻辑
-
-1. **「存资料到知识库」脚本** → 未收录素材存入 `未处理/时间戳.md`
-2. **积累到若干数量后** → 用另一个 py 脚本批量处理未处理区的文件
-3. 批量脚本：将素材内容发给豆包（豆包置顶在前，不碰鼠标键盘）
-4. 豆包按标准格式输出文档
-5. 批量脚本保存到 `知识提炼/`
-6. 机械化链接引擎扫描全库，更新双向链接
-7. 更新倒排索引
-8. 未收录素材移至 `已处理`
+【五、维护纪律】
+· B 层笔记只删不改；过时/错误内容直接删除笔记文件
+· 删除后产生的死链接不予修复
+· 链接引擎在全部新笔记处理完毕后统一运行，每篇笔记只写一次
 """
+
 
 # 子进程统一用 python.exe（pythonw 下无法可靠读管道输出）
 PYTHON = sys.executable
@@ -195,7 +164,8 @@ _state = {
     "root": "",                          # 知识库位置
     "dirs": {"笔记": "", "报告": "", "附件": ""},  # 自定义存放位置
     "coord_file": DEFAULT_COORD_FILE,    # 当前豆包坐标文件名（可自定义，支持多套）
-    "prompts": {},                       # 豆包提示词配置 {"send_format","note_format"}
+    "prompts": {},                       # 豆包提示词配置 {"send_format"}
+    "debug": {"enabled": False, "snapshot": {"inbox": [], "done": [], "notes": [], "moc": [], "logs": []}},
 }
 _log_seq = itertools.count(1)
 _log_lines = deque(maxlen=4000)          # 界面日志缓冲
@@ -400,22 +370,16 @@ def _write_prompt_files():
     root = _state.get("root")
     prompts = _state.get("prompts") or {}
     send = (prompts.get("send_format") or "").strip()
-    note = (prompts.get("note_format") or "").strip()
-    if not root or (not send and not note):
+    if not root or not send:
         return
     try:
         from obsidian_kb import config as _cfgmod
         cfg = _cfgmod.load_config(_cfg_path(), cwd=BASE_DIR)
         rules_dir = os.path.join(root, cfg["structure"].get("D_规则模板", "05规则模板"))
         os.makedirs(rules_dir, exist_ok=True)
-        if send:
-            with open(os.path.join(rules_dir, "豆包知识提炼提示词.md"),
-                      "w", encoding="utf-8", newline="\n") as f:
-                f.write(send)
-        if note:
-            with open(os.path.join(rules_dir, "笔记格式规范.md"),
-                      "w", encoding="utf-8", newline="\n") as f:
-                f.write(note)
+        with open(os.path.join(rules_dir, "豆包知识提炼提示词.md"),
+                  "w", encoding="utf-8", newline="\n") as f:
+            f.write(send)
         _log("已写回规则模板目录：%s" % rules_dir)
     except Exception as e:
         _log("写回规则模板失败：%s" % e)
@@ -424,9 +388,9 @@ def _write_prompt_files():
 def _prompts_config():
     """返回当前提示词配置；未配置或内容全空时返回内置默认，供前端回填。"""
     p = _state.get("prompts") or {}
-    if p.get("send_format") or p.get("note_format"):
+    if p.get("send_format"):
         return p
-    return {"send_format": SEND_DEFAULT, "note_format": NOTE_DEFAULT}
+    return {"send_format": SEND_DEFAULT}
 
 
 def _latest_report_summary():
@@ -595,6 +559,122 @@ def _inbox_delete(items):
 
 
 # ---------------------------------------------------------------------------
+# 调试模式：快照 + 复位
+# ---------------------------------------------------------------------------
+def _debug_dirs():
+    """调试模式涉及的 5 个目录绝对路径；root 未设置或配置读取失败时返回空串。"""
+    root = _state.get("root")
+    if not root:
+        return "", "", "", "", ""
+    try:
+        from obsidian_kb import config as _cfgmod
+        cfg = _cfgmod.load_config(_cfg_path(), cwd=BASE_DIR)
+    except Exception:
+        return "", "", "", "", ""
+    structure = cfg.get("structure", {})
+    inbox = os.path.join(root, cfg.get("import", {}).get("inbox", "01未处理"))
+    done = os.path.join(root, structure.get("已处理", "02已处理"))
+    notes = os.path.join(root, structure.get("B_知识提炼", "03知识提炼"))
+    moc = os.path.join(root, structure.get("C_MOC", "04知识聚合/MOC"))
+    log_dir = (_state.get("dirs") or {}).get("报告") or \
+        cfg.get("logging", {}).get("log_dir", "处理日志")
+    logs = os.path.join(root, log_dir)
+    return inbox, done, notes, moc, logs
+
+
+def _debug_snapshot():
+    """记录 5 个目录当前 basename 集合（目录不存在记空列表）。"""
+    inbox, done, notes, moc, logs = _debug_dirs()
+    snap = {}
+    for key, d in (("inbox", inbox), ("done", done), ("notes", notes),
+                   ("moc", moc), ("logs", logs)):
+        snap[key] = sorted(os.listdir(d)) if d and os.path.isdir(d) else []
+    return snap
+
+
+def _strip_hmss(fn, candidates):
+    """去掉文件名扩展名前的 _HHMMSS 冲突后缀；若还原名在候选集合中则返回，否则返回 None。"""
+    stem, ext = os.path.splitext(fn)
+    m = re.match(r"^(.*)_\d{6}$", stem)
+    if m and m.group(1) + ext in candidates:
+        return m.group(1) + ext
+    return None
+
+
+def _debug_reset():
+    """按快照撤销调试期间的全部操作（在后台线程中执行）。
+
+    ① 删除 03知识提炼 / 04知识聚合/MOC / 处理日志 中调试期间新生成的文件；
+    ② 把调试期间从 01未处理 移到 02已处理 的素材移回（恢复原名，重名加唯一后缀不覆盖）；
+    ③ 清理 .kb_registry.json 中已删除笔记的注册项。
+    复位后保持调试模式开启、快照不变，可反复运行再复位。
+    """
+    inbox, done, notes, moc, logs = _debug_dirs()
+    snap = (_state.get("debug") or {}).get("snapshot") or {}
+    root = _state.get("root")
+    deleted_notes = []
+    removed = {"notes": 0, "moc": 0, "logs": 0}
+    errors = []
+
+    # ① 删除调试期间新生成的文件（笔记 / MOC / 日志报告）
+    for d, key in ((notes, "notes"), (moc, "moc"), (logs, "logs")):
+        if not d or not os.path.isdir(d):
+            continue
+        base = set(snap.get(key) or [])
+        for fn in sorted(os.listdir(d)):
+            p = os.path.join(d, fn)
+            if not os.path.isfile(p) or fn in base:
+                continue
+            try:
+                os.remove(p)
+                removed[key] += 1
+                if key == "notes" and root:
+                    deleted_notes.append(
+                        os.path.relpath(p, root).replace("\\", "/"))
+            except Exception as e:
+                errors.append("删除 %s：%s" % (fn, e))
+
+    # ② 素材移回 01未处理（恢复原名；重名加 _2/_3 唯一后缀，不覆盖）
+    moved = 0
+    if done and os.path.isdir(done) and inbox:
+        os.makedirs(inbox, exist_ok=True)
+        inbox_base = set(snap.get("inbox") or [])
+        done_base = set(snap.get("done") or [])
+        for fn in sorted(os.listdir(done)):
+            p = os.path.join(done, fn)
+            if not os.path.isfile(p) or fn in done_base:
+                continue
+            orig = fn if fn in inbox_base else (_strip_hmss(fn, inbox_base) or fn)
+            dst = os.path.join(inbox, orig)
+            if os.path.exists(dst):
+                stem, ext = os.path.splitext(orig)
+                i = 2
+                while os.path.exists(os.path.join(inbox, "%s_%d%s" % (stem, i, ext))):
+                    i += 1
+                dst = os.path.join(inbox, "%s_%d%s" % (stem, i, ext))
+            try:
+                os.replace(p, dst)
+                moved += 1
+            except Exception as e:
+                errors.append("移回 %s：%s" % (fn, e))
+
+    # ③ registry 清理（失败仅告警，不阻断文件还原）
+    try:
+        if root and deleted_notes:
+            from obsidian_kb.registry import Registry
+            reg = Registry(root)
+            for rel in deleted_notes:
+                reg.remove_by_note(rel)
+            reg.save()
+    except Exception as e:
+        errors.append("registry 清理：%s" % e)
+
+    _log("调试复位完成：删除笔记 %d、MOC %d、日志/报告 %d，移回素材 %d%s" % (
+        removed["notes"], removed["moc"], removed["logs"], moved,
+        "；告警：%s" % "；".join(errors[:5]) if errors else ""))
+
+
+# ---------------------------------------------------------------------------
 # HTTP 处理
 # ---------------------------------------------------------------------------
 class Handler(BaseHTTPRequestHandler):
@@ -658,6 +738,12 @@ class Handler(BaseHTTPRequestHandler):
             "coord_waiting": _coord_waiting.get("which", ""),
             "doubao_running": _doubao_running["flag"],
             "prompts": _prompts_config(),
+            "gen_spec": GEN_SPEC,
+            "debug": {
+                "enabled": bool((_state.get("debug") or {}).get("enabled")),
+                "snapshot": {k: len(v) for k, v in
+                             ((_state.get("debug") or {}).get("snapshot") or {}).items()},
+            },
             "summary": _latest_report_summary(),
         }
 
@@ -697,12 +783,52 @@ class Handler(BaseHTTPRequestHandler):
 
         elif path == "/api/prompts":
             send = str(body.get("send_format") or "").strip()
-            note = str(body.get("note_format") or "").strip()
-            _state["prompts"] = {"send_format": send, "note_format": note}
+            _state["prompts"] = {"send_format": send}
             save_state()
             _write_prompt_files()
-            _log("提示词格式已保存（发送格式 %d 字 / 生成格式 %d 字）" % (len(send), len(note)))
+            _log("提示词格式已保存（发送格式 %d 字）" % len(send))
             self._send_json({"ok": True, "status": self._status()})
+
+        elif path == "/api/debug/toggle":
+            dbg = _state.setdefault("debug", {})
+            if body.get("enabled"):
+                dbg["enabled"] = True
+                dbg["snapshot"] = _debug_snapshot()
+                _log("调试模式已开启（已记录各目录快照：%s）" % json.dumps(
+                    {k: len(v) for k, v in dbg["snapshot"].items()},
+                    ensure_ascii=False))
+            else:
+                dbg["enabled"] = False
+                dbg["snapshot"] = {"inbox": [], "done": [], "notes": [],
+                                   "moc": [], "logs": []}
+                _log("调试模式已关闭（快照已清空，已生成文件保留）")
+            save_state()
+            self._send_json({"ok": True, "status": self._status()})
+
+        elif path == "/api/debug/reset":
+            dbg = _state.get("debug") or {}
+            if not dbg.get("enabled"):
+                self._send_json({"ok": False, "error": "请先开启调试模式"})
+                return
+            with _lock:
+                if _busy["flag"]:
+                    self._send_json({"ok": False, "error": "已有任务在运行，请稍候"})
+                    return
+                _busy.update(flag=True, action="调试复位")
+            _log("———————— 开始：调试复位 ————————")
+            self._send_json({"ok": True, "status": self._status()})
+
+            def _reset_worker():
+                try:
+                    _debug_reset()
+                except Exception as e:
+                    _log("调试复位出错：%s" % e)
+                finally:
+                    with _lock:
+                        _busy.update(flag=False, action="")
+                    _log("———————— 完成：调试复位 ————————")
+
+            threading.Thread(target=_reset_worker, daemon=True).start()
 
         elif path == "/api/coord/record":
             which = body.get("which", "")
@@ -950,12 +1076,13 @@ class Handler(BaseHTTPRequestHandler):
                     cfg, root, _coords, reg, logger, report,
                     wait_seconds=wait, max_items=max_items,
                     stop_event=_doubao_stop,
-                    send_format=prompts.get("send_format") or None,
-                    note_format=prompts.get("note_format") or None)
-                # 全部完成后运行链接引擎 + MOC（对齐模板流程）
-                if not _doubao_stop.is_set():
+                    send_format=prompts.get("send_format") or None)
+                # 全部完成后运行链接引擎 + MOC/索引（对齐模板流程；调试模式下跳过，便于复位撤销）
+                if not (_state.get("debug") or {}).get("enabled") \
+                        and not _doubao_stop.is_set():
                     linker.run_linking(cfg, root, reg, logger, report)
                     linker.generate_mocs(cfg, root, logger, report)
+                    linker.generate_indexes(cfg, root, logger, report)
                     reg.save()
                     started = datetime.datetime.now()
                     path = logger_mod.write_report(

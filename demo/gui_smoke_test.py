@@ -94,11 +94,12 @@ def main():
         len(os.listdir(trash)) if os.path.isdir(trash) else 0))
 
     # 4. 保存提示词格式
-    r = api("/api/prompts", {"send_format": "测试发送格式：{素材内容}", "note_format": "测试生成格式"})
+    r = api("/api/prompts", {"send_format": "测试发送格式：{素材内容}"})
     say("[4 提示词] ok=%s" % r.get("ok"))
     r = api("/api/status")
     p = r.get("prompts", {})
-    say("[4 提示词回填] send=%s note=%s" % (p.get("send_format"), p.get("note_format")))
+    say("[4 提示词回填] send=%s" % p.get("send_format"))
+    say("[4.2 只读参考] gen_spec 长度=%d（应>0）" % len(r.get("gen_spec", "")))
 
     # 4.1 GUI 已取消一键同步，改用命令行 sync 生成产物供校验
     import subprocess
@@ -112,7 +113,19 @@ def main():
     summary = r.get("summary", {})
     say("[5 报告摘要] %s" % json.dumps(summary, ensure_ascii=False))
 
-    # 6. 日志
+    # 6. 调试模式开关（开启→快照；关闭→清空）
+    r = api("/api/debug/toggle", {"enabled": True})
+    d = (r.get("status") or {}).get("debug", {})
+    say("[6 调试开启] enabled=%s snapshot=%s" % (d.get("enabled"), d.get("snapshot")))
+    r = api("/api/debug/reset", {})   # 开启状态下复位应被受理
+    say("[6 复位受理] ok=%s" % r.get("ok"))
+    r = api("/api/debug/toggle", {"enabled": False})
+    d = (r.get("status") or {}).get("debug", {})
+    say("[6 调试关闭] enabled=%s snapshot=%s" % (d.get("enabled"), d.get("snapshot")))
+    r = api("/api/debug/reset", {})   # 关闭状态下复位应被拒绝
+    say("[6 复位拒绝] ok=%s err=%s" % (r.get("ok"), r.get("error", "")))
+
+    # 7. 日志
     r = api("/api/logs?after=0")
     say("[7 日志] 共 %d 条，末条: %s" % (len(r.get("items", [])), r.get("items", [{}])[-1].get("text", "")))
 

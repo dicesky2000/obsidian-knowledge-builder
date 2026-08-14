@@ -52,6 +52,7 @@ def _sync(cfg: Dict[str, Any], vault_root: str, cfg_path: Optional[str],
     if not dry_run:
         linker.run_linking(cfg, vault_root, reg, logger, report)
         linker.generate_mocs(cfg, vault_root, logger, report)
+        linker.generate_indexes(cfg, vault_root, logger, report)
         reg.save()
 
     duration = (datetime.datetime.now() - started).total_seconds()
@@ -105,6 +106,7 @@ def cmd_link(args: argparse.Namespace) -> int:
     reg = registry.Registry(root)
     linker.run_linking(cfg, root, reg, logger, report)
     linker.generate_mocs(cfg, root, logger, report)
+    linker.generate_indexes(cfg, root, logger, report)
     reg.save()
     duration = (datetime.datetime.now() - started).total_seconds()
     path = logger_mod.write_report(report, root,
