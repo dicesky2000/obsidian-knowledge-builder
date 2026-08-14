@@ -1,0 +1,700 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>知识库助手</title>
+<style>
+  :root {
+    --bg: #f2f5f9; --card: #ffffff; --line: #dfe5ee; --text: #1e2733;
+    --muted: #66707f; --blue: #2563eb; --blue-d: #1d4ed8; --green: #16a34a;
+    --amber: #b45309; --red: #dc2626;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: var(--bg); color: var(--text); font-family: "Microsoft YaHei", "PingFang SC", -apple-system, sans-serif; line-height: 1.6; }
+  .wrap { max-width: 880px; margin: 0 auto; padding: 24px 16px 60px; }
+  header { text-align: center; padding: 26px 0 8px; }
+  header h1 { font-size: 26px; letter-spacing: 2px; }
+  header p { color: var(--muted); font-size: 13px; margin-top: 6px; }
+  .errbar { display: none; background: #fef2f2; border: 1px solid #fecaca; color: #b91c1c; border-radius: 10px; padding: 12px 16px; font-size: 14px; margin-top: 14px; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 20px 22px; margin-top: 16px; box-shadow: 0 1px 3px rgba(16,24,40,.05); }
+  .card h2 { font-size: 15px; margin-bottom: 12px; display: flex; align-items: center; gap: 8px; }
+  .card h2 .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--blue); display: inline-block; }
+  .row { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+  input[type=text], input[type=number] { border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; font-size: 14px; outline: none; flex: 1; min-width: 240px; }
+  input[type=text]:focus { border-color: var(--blue); }
+  .btn { border: none; border-radius: 10px; padding: 12px 18px; font-size: 15px; cursor: pointer; color: #fff; background: var(--blue); transition: .15s; }
+  .btn:hover { background: var(--blue-d); }
+  .btn.green { background: var(--green); }
+  .btn.gray { background: #64748b; }
+  .btn.red { background: var(--red); }
+  .btn.soft { background: #eef2f7; color: #475569; }
+  .btn:disabled { opacity: .45; cursor: not-allowed; }
+  .hint { font-size: 12px; color: var(--muted); margin-top: 8px; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; }
+  .stat { background: #f8fafc; border: 1px solid var(--line); border-radius: 10px; padding: 12px; text-align: center; }
+  .stat b { font-size: 22px; color: var(--blue); display: block; }
+  .stat span { font-size: 12px; color: var(--muted); }
+  .status-line { font-size: 13px; color: var(--muted); margin-bottom: 10px; }
+  .status-line b { color: var(--text); }
+  .logbox { background: #0f172a; color: #dbeafe; border-radius: 10px; padding: 14px; height: 50vh; overflow-y: auto; font-family: Consolas, "Courier New", monospace; font-size: 12.5px; line-height: 1.7; white-space: pre-wrap; word-break: break-all; }
+  .tag { display: inline-block; padding: 2px 10px; border-radius: 999px; font-size: 12px; margin-right: 6px; }
+  .tag.on { background: #dcfce7; color: #15803d; }
+  .tag.off { background: #fee2e2; color: #b91c1c; }
+  footer { text-align: center; color: var(--muted); font-size: 12px; margin-top: 24px; }
+  .toast { position: fixed; top: 18px; left: 50%; transform: translateX(-50%); background: #1e293b; color: #fff; padding: 10px 22px; border-radius: 10px; font-size: 14px; box-shadow: 0 4px 14px rgba(0,0,0,.2); display: none; z-index: 99; }
+  .inbox-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+  .inbox-head span { font-size: 13px; color: var(--muted); }
+  .inbox-list { border: 1px solid var(--line); border-radius: 10px; max-height: 260px; overflow-y: auto; }
+  .inbox-item { display: flex; align-items: center; gap: 10px; padding: 8px 12px; border-bottom: 1px solid #f1f5f9; font-size: 13.5px; }
+  .inbox-item:last-child { border-bottom: none; }
+  .inbox-item input { width: 16px; height: 16px; }
+  .inbox-item .nm { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .inbox-item .sz { color: var(--muted); font-size: 12px; width: 70px; text-align: right; }
+  .inbox-item .tm { color: var(--muted); font-size: 12px; width: 130px; text-align: right; }
+  .src-badge { font-size: 11px; color: #b45309; background: #fef3c7; border: 1px solid #fde68a; border-radius: 6px; padding: 1px 7px; margin-right: 8px; white-space: nowrap; }
+  .empty { color: var(--muted); font-size: 13px; padding: 14px; text-align: center; }
+</style>
+</head>
+<body>
+<div class="toast" id="toast"></div>
+
+<div class="wrap">
+  <header>
+    <h1>📚 知识库助手</h1>
+    <p>自动搭建 Obsidian 知识库 · 一键整理 · 自动建立知识链接</p>
+  </header>
+
+  <div class="errbar" id="errbar">
+    ⚠ 无法连接知识库助手服务 —— 请先双击「launch-kb-assistant.bat」，然后刷新本页面。
+  </div>
+
+  <!-- ① 知识库位置 -->
+  <div class="card">
+    <h2><span class="dot"></span>第一步：知识库放在哪里</h2>
+    <div class="row">
+      <input type="text" id="root" placeholder="例如：D:\我的知识库">
+      <button class="btn" id="btnSetRoot">保存位置</button>
+      <button class="btn gray" id="btnOpenPath">打开该路径</button>
+    </div>
+    <div class="hint">选择一个空文件夹或新文件夹，程序会在里面自动创建「未处理 / 已处理 / 知识提炼 / 知识聚合 / 规则模板」等标准结构。填好后点「保存位置」，再点「① 创建知识库」；也可直接点「打开该路径」在文件管理器里查看/新建。</div>
+  </div>
+
+  <!-- ② 常用操作 -->
+  <div class="card">
+    <h2><span class="dot"></span>第二步：日常操作（点一下就行）</h2>
+    <div class="row">
+      <button class="btn gray" id="btnInit">① 创建知识库</button>
+      <button class="btn" id="btnPickFolder">② 选择资料文件夹</button>
+      <button class="btn" id="btnPickFiles">选择资料文件</button>
+      <button class="btn green" id="btnSync">③ 一键同步整理</button>
+      <button class="btn gray" id="btnOpen">打开知识库文件夹</button>
+    </div>
+    <input type="file" id="pickFolder" webkitdirectory style="display:none">
+    <input type="file" id="pickFiles" multiple style="display:none">
+    <div class="hint">提示：点「一键同步」会把「未处理」里的资料一起整理成标准笔记、自动打标签、自动建立知识链接，并生成处理报告。</div>
+    <div class="hint" id="uploadTip" style="color:var(--green);display:none"></div>
+  </div>
+
+  <!-- ③ 待同步资料 -->
+  <div class="card">
+    <h2><span class="dot"></span>待同步资料（未处理，同步前可随时删减）</h2>
+    <div class="inbox-head">
+      <span class="row" style="gap:10px">
+        <input type="checkbox" id="inboxSelAll" title="全选 / 取消全选">
+        <span id="inboxCount">共 0 个文件</span>
+      </span>
+      <span class="row" style="gap:8px">
+        <button class="btn soft" id="btnDelSel">删除所选</button>
+        <button class="btn soft" id="btnClearInbox">清空未处理</button>
+        <button class="btn soft" id="btnRefreshInbox">刷新</button>
+      </span>
+    </div>
+    <div class="inbox-list" id="inboxList">
+      <div class="empty">（暂无文件）</div>
+    </div>
+    <div class="hint">删除的文件会移到知识库里的「_kb_回收站」文件夹，可在文件管理器中找回，不会真正丢失。</div>
+  </div>
+
+  <!-- ④ 最近结果 -->
+  <div class="card">
+    <h2><span class="dot"></span>最近一次处理结果</h2>
+    <div class="status-line" id="vaultStatus">知识库：未设置</div>
+    <div class="grid" id="statGrid">
+      <div class="stat"><b>—</b><span>导入文件</span></div>
+      <div class="stat"><b>—</b><span>新增笔记</span></div>
+      <div class="stat"><b>—</b><span>新增双链</span></div>
+      <div class="stat"><b>—</b><span>索引页</span></div>
+    </div>
+    <div class="row" style="margin-top:12px">
+      <button class="btn gray" id="btnReport">查看完整处理报告</button>
+    </div>
+  </div>
+
+  <!-- ⑤ 豆包自动整理 -->
+  <div class="card">
+    <h2><span class="dot"></span>豆包自动整理（让豆包帮你提炼笔记）</h2>
+    <div class="hint" style="margin-bottom:10px">流程：把素材放进知识库的 <b>未处理</b> 文件夹（豆包会自动扫描这一处）→ 点「开始」约 2 秒后自动把豆包切前台并最大化 → 程序把素材按 D 层提示词模板发给豆包，自动复制回复生成 B 层笔记（素材随之移入「已处理」）。先记录三个按钮位置（鼠标移到豆包对应位置按 F6）。整理期间<b>不要动鼠标和键盘</b>。</div>
+
+    <div class="status-line" id="coordStatus">坐标：未记录</div>
+    <div class="row" style="margin-bottom:8px">
+      <label style="font-size:14px">坐标文件</label>
+      <input type="text" id="coordFile" placeholder="豆包坐标" style="min-width:120px">
+      <button class="btn soft" id="btnCoordUse">使用该文件</button>
+      <select id="coordFileList" style="padding:9px;border:1px solid var(--line);border-radius:8px"></select>
+    </div>
+    <div class="row">
+      <button class="btn gray" id="btnRecInput">记录输入框坐标</button>
+      <button class="btn gray" id="btnRecScroll">记录下翻坐标</button>
+      <button class="btn gray" id="btnRecCopy">记录复制坐标</button>
+      <button class="btn soft" id="btnCoordCancel" style="display:none">取消记录</button>
+      <button class="btn soft" id="btnCoordExport">生成坐标文件</button>
+      <button class="btn soft" id="btnCoordImport">导入坐标文件</button>
+      <button class="btn soft" id="btnCoordClear">清除坐标</button>
+      <button class="btn soft" id="btnDoubaoTest">测试鼠标模拟</button>
+    </div>
+    <input type="file" id="pickCoord" accept=".json,application/json" style="display:none">
+    <div class="hint">坐标只需记录一次并保存为文件（可存多套，如"家用电脑"、"办公室"），下次直接用「使用该文件」切换即可，无需重新记录。</div>
+    <div class="row" style="margin-top:12px">
+      <label style="font-size:14px">等待豆包生成
+        <input type="number" id="dbWait" min="5" max="300" style="width:70px;min-width:0" value="30">
+        秒
+      </label>
+      <label style="font-size:14px">模拟点击循环次数
+        <input type="number" id="dbMax" min="0" style="width:70px;min-width:0" value="1">
+        次（0=全部处理）
+      </label>
+      <button class="btn soft" id="btnDbAutoMatch" title="把循环次数设为「待同步资料」里的文件数">自动匹配</button>
+      <button class="btn green" id="btnDoubaoStart">开始豆包整理</button>
+      <button class="btn red" id="btnDoubaoStop" style="display:none">停止</button>
+    </div>
+    <div class="hint" id="dbTip" style="color:var(--amber);display:none">⏳ 正在等待您把鼠标移到指定位置……</div>
+  </div>
+
+  <!-- ⑥ 自动同步 -->
+  <div class="card">
+    <h2><span class="dot"></span>自动同步（可选）</h2>
+    <div class="row">
+      <span id="schedTag" class="tag off">未开启</span>
+      <label style="font-size:14px">每隔
+        <input type="number" id="schedMin" min="5" max="1440" style="width:80px;min-width:0" value="30">
+        分钟自动整理一次
+      </label>
+      <button class="btn" id="btnSched">开启自动同步</button>
+      <button class="btn gray" id="btnSchedOff">关闭</button>
+    </div>
+    <div class="hint">开启后，程序会按间隔时间自动执行「一键同步」；关闭窗口或点下方「退出」即停止。</div>
+  </div>
+
+  <!-- ⑦ 高级设置 -->
+  <div class="card">
+    <h2><span class="dot"></span>高级设置：存放位置（可自定义）</h2>
+    <div class="hint" style="margin-bottom:10px">留空则使用默认位置。填写后点「保存」，只影响之后整理的文件。</div>
+    <div class="row" style="margin-bottom:8px">
+      <label style="font-size:14px;width:90px">笔记目录</label>
+      <input type="text" id="dirNote" placeholder="默认：知识提炼">
+    </div>
+    <div class="row" style="margin-bottom:8px">
+      <label style="font-size:14px;width:90px">报告目录</label>
+      <input type="text" id="dirReport" placeholder="默认：处理日志">
+    </div>
+    <div class="row" style="margin-bottom:8px">
+      <label style="font-size:14px;width:90px">附件目录</label>
+      <input type="text" id="dirAttach" placeholder="默认：附件">
+    </div>
+    <div class="row" style="margin-top:12px">
+      <button class="btn" id="btnDirSave">保存存放位置</button>
+    </div>
+    <div class="hint">目录名相对于知识库根目录，例如填「我的笔记」就是 <b>知识库/我的笔记</b>。</div>
+  </div>
+
+  <!-- ⑧ 运行日志 -->
+  <div class="card">
+    <h2><span class="dot"></span>运行日志</h2>
+    <div class="logbox" id="logbox"></div>
+  </div>
+
+  <footer>
+    <button class="btn soft" id="btnExit">退出知识库助手</button>
+    <p style="margin-top:10px">所有资料只保存在您自己的电脑上，本程序不上传任何数据。</p>
+  </footer>
+</div>
+
+<script>
+"use strict";
+const $ = id => document.getElementById(id);
+let lastLogId = 0;
+let connected = true;
+
+function toast(msg, ok) {
+  const t = $("toast");
+  t.textContent = msg;
+  t.style.background = ok === false ? "#b91c1c" : "#1e293b";
+  t.style.display = "block";
+  clearTimeout(t._h);
+  t._h = setTimeout(() => { t.style.display = "none"; }, 3200);
+}
+
+function setConnError(show) {
+  $("errbar").style.display = show ? "block" : "none";
+  connected = !show;
+}
+
+async function api(path, body) {
+  let res;
+  try {
+    const opt = { method: body === undefined ? "GET" : "POST" };
+    if (body !== undefined) opt.body = JSON.stringify(body);
+    res = await fetch(path, opt);
+  } catch (e) {
+    setConnError(true);
+    return null;
+  }
+  setConnError(false);
+  let j;
+  try {
+    j = await res.json();
+  } catch (e) {
+    return { ok: false, error: "服务返回异常 —— 建议：关闭本页面，重新双击「launch-kb-assistant.bat」" };
+  }
+  if (j && j.ok === false && /未知接口|服务返回异常/.test(j.error || "")) {
+    j.error = (j.error || "") + " —— 建议：关闭本页面，重新双击「launch-kb-assistant.bat」";
+  }
+  return j;
+}
+
+// 按钮忙碌态：返回原文字
+function busy(btn, text) {
+  btn.dataset.txt = btn.textContent;
+  btn.textContent = text;
+  btn.disabled = true;
+}
+function idle(btn) {
+  btn.textContent = btn.dataset.txt || btn.textContent;
+  btn.disabled = false;
+}
+
+function fmtSize(n) {
+  if (n < 1024) return n + " B";
+  if (n < 1048576) return (n / 1024).toFixed(1) + " KB";
+  return (n / 1048576).toFixed(1) + " MB";
+}
+
+function setButtons(disabled) {
+  ["btnInit", "btnSync", "btnSetRoot"].forEach(id => { $(id).disabled = disabled; });
+}
+
+function renderStatus(s) {
+  if (s.root) {
+    let html = "知识库：" + "<b>" + s.root + "</b>"
+      + (s.vault_exists ? "（已存在）" : "（尚未创建，请点「① 创建知识库」）");
+    if (s.busy) html += "　<span style='color:#b45309'>⏳ 正在" + s.busy_action + "……</span>";
+    $("vaultStatus").innerHTML = html;
+  } else {
+    $("vaultStatus").textContent = "知识库：未设置";
+  }
+  $("schedTag").textContent = s.schedule_enabled ? "已开启" : "未开启";
+  $("schedTag").className = "tag " + (s.schedule_enabled ? "on" : "off");
+  $("schedMin").value = s.schedule_minutes || 30;
+  setButtons(s.busy || !connected);
+  if (s.summary) {
+    const map = { "导入文件数": 0, "新增笔记数": 1, "新增双链数": 2, "MOC 索引页": 3 };
+    const labels = ["导入文件", "新增笔记", "新增双链", "索引页"];
+    const vals = ["—", "—", "—", "—"];
+    for (const k in s.summary) if (k in map) vals[map[k]] = s.summary[k];
+    const cells = $("statGrid").querySelectorAll(".stat");
+    cells.forEach((c, i) => { c.querySelector("b").textContent = vals[i]; c.querySelector("span").textContent = labels[i]; });
+  }
+}
+
+async function refreshStatus() {
+  const s = await api("/api/status");
+  if (s && s.ok) {
+    renderStatus(s);
+    renderDoubao(s);
+    if (!dirsLoaded) { fillDirs(s.dirs); dirsLoaded = true; }
+  }
+}
+
+let dirsLoaded = false;
+function fillDirs(dirs) {
+  if (!dirs) return;
+  if (dirs["笔记"] !== undefined) $("dirNote").value = dirs["笔记"] || "";
+  if (dirs["报告"] !== undefined) $("dirReport").value = dirs["报告"] || "";
+  if (dirs["附件"] !== undefined) $("dirAttach").value = dirs["附件"] || "";
+}
+
+function renderDoubao(s) {
+  const coords = s.coords || {};
+  const names = ["输入框", "下翻箭头", "复制按钮"];
+  const parts = [];
+  let all = true;
+  names.forEach(n => {
+    const c = coords[n];
+    if (c) parts.push(n + "(" + c.x + "," + c.y + ")");
+    else all = false;
+  });
+  $("coordStatus").innerHTML = "坐标文件：<b>" + (s.coord_file || "豆包坐标.json") + "</b>　坐标：" +
+    (parts.length ? parts.join(" ") : "未记录");
+  // 坐标文件下拉
+  const sel = $("coordFileList");
+  const cur = s.coord_file || "豆包坐标.json";
+  const files = s.coord_files || [cur];
+  const curBase = cur.replace(/\.json$/i, "");
+  if ($("coordFile").value === "" || !coordFileTouched) $("coordFile").value = curBase;
+  sel.innerHTML = "";
+  files.forEach(fn => {
+    const opt = document.createElement("option");
+    opt.value = fn;
+    opt.textContent = fn + (fn === cur ? "（当前）" : "");
+    if (fn === cur) opt.selected = true;
+    sel.appendChild(opt);
+  });
+  if (s.coord_waiting) {
+    $("dbTip").style.display = "block";
+    $("dbTip").textContent = "⏳ 正在等待您把鼠标移到豆包【" + s.coord_waiting + "】位置，然后按 F6 确认（按 Esc 或点「取消记录」取消）";
+    $("btnCoordCancel").style.display = "inline-block";
+    $("btnRecInput").disabled = true;
+    $("btnRecScroll").disabled = true;
+    $("btnRecCopy").disabled = true;
+  } else {
+    $("dbTip").style.display = "none";
+    $("btnCoordCancel").style.display = "none";
+    $("btnRecInput").disabled = s.doubao_running;
+    $("btnRecScroll").disabled = s.doubao_running;
+    $("btnRecCopy").disabled = s.doubao_running;
+  }
+  $("btnDoubaoStart").disabled = s.busy || !all;
+  $("btnDoubaoStop").style.display = s.doubao_running ? "inline-block" : "none";
+  $("btnDoubaoStart").style.display = s.doubao_running ? "none" : "inline-block";
+}
+
+let coordFileTouched = false;
+$("coordFile").addEventListener("input", () => { coordFileTouched = true; });
+
+function renderInbox(items) {
+  const list = $("inboxList");
+  // 按来源统计数量（统一为「未处理」）
+  const bd = {};
+  items.forEach(it => { const s = it.source || "未处理"; bd[s] = (bd[s] || 0) + 1; });
+  const parts = Object.keys(bd).map(k => k + " " + bd[k]);
+  $("inboxCount").innerHTML = "共 " + items.length + " 个文件" +
+    (parts.length ? "（" + parts.join(" · ") + "）" : "");
+  // 列表刷新后重置全选状态
+  if ($("inboxSelAll")) $("inboxSelAll").checked = false;
+  if (!items.length) {
+    list.innerHTML = '<div class="empty">（暂无文件）</div>';
+    return;
+  }
+  list.innerHTML = "";
+  items.forEach(it => {
+    const row = document.createElement("label");
+    row.className = "inbox-item";
+    const src = it.source || "未处理";
+    const badge = src === "未处理" ? "" :
+      '<span class="src-badge">' + src.replace(/</g, "&lt;") + "</span>";
+    row.innerHTML =
+      '<input type="checkbox" data-name="' + it.name.replace(/"/g, "&quot;") +
+      '" data-source="' + src.replace(/"/g, "&quot;") + '">' +
+      '<span class="nm">' + it.name.replace(/</g, "&lt;") + "</span>" +
+      badge +
+      '<span class="sz">' + fmtSize(it.size) + "</span>" +
+      '<span class="tm">' + it.mtime + "</span>";
+    list.appendChild(row);
+  });
+}
+
+async function refreshInbox() {
+  const r = await api("/api/inbox");
+  if (r && r.ok) renderInbox(r.items || []);
+}
+
+function selectedItems() {
+  const out = [];
+  document.querySelectorAll("#inboxList input:checked").forEach(cb => {
+    out.push({ name: cb.getAttribute("data-name"),
+               source: cb.getAttribute("data-source") || "未处理" });
+  });
+  return out;
+}
+
+// ---- 操作绑定 ----
+$("btnSetRoot").onclick = async () => {
+  const root = $("root").value.trim();
+  if (!root) { toast("请先填写知识库位置，例如 D:\\我的知识库", false); return; }
+  busy($("btnSetRoot"), "保存中…");
+  const r = await api("/api/set_root", { root });
+  idle($("btnSetRoot"));
+  if (r && r.ok) { toast("知识库位置已保存 ✓"); renderStatus(r.status); }
+  else if (!r) toast("无法连接服务，请先双击启动 bat", false);
+  else toast(r.error || "保存失败", false);
+};
+
+$("btnOpenPath").onclick = async () => {
+  const root = $("root").value.trim();
+  const r = await api("/api/open_path", { path: root });
+  toast(r ? (r.ok ? "已打开该路径" : (r.error || "打开失败")) : "无法连接服务", r && r.ok);
+};
+
+$("btnInit").onclick = async () => {
+  busy($("btnInit"), "创建中…");
+  const r = await api("/api/init", {});
+  idle($("btnInit"));
+  if (r && r.ok) toast("正在创建知识库，请看下方日志");
+  else if (!r) toast("无法连接服务，请先双击启动 bat", false);
+  else toast(r.error || "失败", false);
+};
+
+$("btnSync").onclick = async () => {
+  busy($("btnSync"), "同步中…");
+  const r = await api("/api/sync", {});
+  if (r && r.ok) toast("正在同步整理，请看下方日志");
+  else if (!r) toast("无法连接服务，请先双击启动 bat", false);
+  else toast(r.error || "失败", false);
+  idle($("btnSync"));
+};
+
+$("btnOpen").onclick = async () => {
+  const r = await api("/api/open", {});
+  toast(r ? (r.ok ? "已打开知识库文件夹" : (r.error || "失败")) : "无法连接服务", r && r.ok);
+};
+
+$("btnReport").onclick = async () => {
+  const r = await api("/api/open_report", {});
+  toast(r ? (r.ok ? "已打开处理报告" : (r.error || "还没有报告")) : "无法连接服务", r && r.ok);
+};
+
+$("btnPickFolder").onclick = () => $("pickFolder").click();
+$("btnPickFiles").onclick = () => $("pickFiles").click();
+
+async function uploadFiles(fileList, folderMode) {
+  if (!fileList || !fileList.length) return;
+  const tip = $("uploadTip");
+  tip.style.display = "block";
+  const MAX = 50 * 1024 * 1024;
+  const pairs = [];
+  for (const file of fileList) {
+    if (file.size > MAX) { tip.textContent = "已跳过超大文件：" + file.name + "（>50MB，请手动放入未处理）"; continue; }
+    const rel = folderMode && file.webkitRelativePath
+      ? file.webkitRelativePath.split("/").slice(1).join("/")
+      : file.name;
+    pairs.push({ rel: rel || file.name, file: file });
+  }
+  const CHUNK = 10;
+  let done = 0;
+  tip.textContent = "正在放入未处理：0/" + pairs.length;
+  for (let i = 0; i < pairs.length; i += CHUNK) {
+    const chunk = pairs.slice(i, i + CHUNK);
+    const files = [];
+    for (const item of chunk) {
+      const reader = await new Promise(res => {
+        const fr = new FileReader();
+        fr.onload = () => res(fr.result);
+        fr.readAsDataURL(item.file);
+      });
+      const b64 = String(reader).split(",")[1] || "";
+      files.push({ name: item.rel, data: b64 });
+    }
+    const r = await api("/api/upload", { files });
+    if (!r) { toast("无法连接服务，请先双击启动 bat", false); return; }
+    done += chunk.length;
+    tip.textContent = "正在放入未处理：" + done + "/" + pairs.length;
+  }
+  tip.textContent = "完成：共 " + pairs.length + " 个文件放入未处理，可在下方列表检查/删减，然后点「③ 一键同步整理」🎉";
+  toast("资料已放入未处理 ✓");
+  await refreshInbox();
+}
+
+$("pickFolder").onchange = e => { uploadFiles(e.target.files, true); e.target.value = ""; };
+$("pickFiles").onchange = e => { uploadFiles(e.target.files, false); e.target.value = ""; };
+
+$("btnDelSel").onclick = async () => {
+  const items = selectedItems();
+  if (!items.length) { toast("请先勾选要删除的文件", false); return; }
+  if (!confirm("确定删除这 " + items.length + " 个文件吗？（会移到 _kb_回收站，可找回）")) return;
+  busy($("btnDelSel"), "删除中…");
+  const r = await api("/api/inbox/delete", { items });
+  idle($("btnDelSel"));
+  if (r && r.ok) {
+    toast("已删除 " + r.moved.length + " 个文件 ✓");
+    renderInbox(r.items || []);
+  } else if (!r) toast("无法连接服务，请先双击启动 bat", false);
+};
+
+$("btnClearInbox").onclick = async () => {
+  const items = [];
+  document.querySelectorAll("#inboxList input").forEach(cb => {
+    items.push({ name: cb.getAttribute("data-name"),
+                 source: cb.getAttribute("data-source") || "未处理" });
+  });
+  if (!items.length) { toast("未处理里已经是空的", false); return; }
+  if (!confirm("确定清空未处理里的 " + items.length + " 个文件吗？（会移到 _kb_回收站，可找回）")) return;
+  busy($("btnClearInbox"), "清空中…");
+  const r = await api("/api/inbox/delete", { items });
+  idle($("btnClearInbox"));
+  if (r && r.ok) {
+    toast("已清空未处理 ✓");
+    renderInbox(r.items || []);
+  } else if (!r) toast("无法连接服务，请先双击启动 bat", false);
+};
+
+// 全选 / 取消全选：联动未处理列表内所有复选框
+$("inboxSelAll").onchange = () => {
+  const checked = $("inboxSelAll").checked;
+  document.querySelectorAll("#inboxList input[type=checkbox]").forEach(cb => {
+    cb.checked = checked;
+  });
+};
+
+$("btnRefreshInbox").onclick = () => refreshInbox();
+
+// ---- 高级设置：存放位置 ----
+$("btnDirSave").onclick = async () => {
+  busy($("btnDirSave"), "保存中…");
+  const dirs = {
+    "笔记": $("dirNote").value.trim(),
+    "报告": $("dirReport").value.trim(),
+    "附件": $("dirAttach").value.trim(),
+  };
+  const r = await api("/api/dirs", { dirs });
+  idle($("btnDirSave"));
+  if (r && r.ok) toast("存放位置已保存 ✓（影响之后整理的文件）");
+  else if (!r) toast("无法连接服务，请先双击启动 bat", false);
+  else toast(r.error || "保存失败", false);
+};
+
+// ---- 豆包自动整理 ----
+function recCoord(which) {
+  api("/api/coord/record", { which }).then(r => {
+    if (r && r.ok) toast("请把鼠标移到豆包" + which + "位置，按 F6 确认");
+    else if (r) toast(r.error || "失败", false);
+  });
+}
+$("btnRecInput").onclick = () => recCoord("输入框");
+$("btnRecScroll").onclick = () => recCoord("下翻箭头");
+$("btnRecCopy").onclick = () => recCoord("复制按钮");
+
+$("btnCoordCancel").onclick = async () => {
+  await api("/api/coord/cancel", {});
+  toast("已取消记录");
+};
+$("btnCoordClear").onclick = async () => {
+  const r = await api("/api/coord/clear", {});
+  if (r && r.ok) toast("豆包坐标已清除");
+};
+
+// ---- 坐标文件管理 ----
+$("btnCoordUse").onclick = async () => {
+  const name = $("coordFile").value.trim();
+  if (!name) { toast("请先填写坐标文件名称", false); return; }
+  const r = await api("/api/coord/set_file", { name });
+  if (r && r.ok) toast("已切换到坐标文件：" + (r.status.coord_file || name));
+  else if (r) toast(r.error || "切换失败", false);
+};
+$("coordFileList").onchange = async () => {
+  const fn = $("coordFileList").value;
+  if (!fn) return;
+  $("coordFile").value = fn.replace(/\.json$/i, "");
+  const r = await api("/api/coord/set_file", { name: fn.replace(/\.json$/i, "") });
+  if (r && r.ok) toast("已切换到坐标文件：" + fn);
+};
+$("btnCoordExport").onclick = async () => {
+  const name = $("coordFile").value.trim() || "豆包坐标";
+  const r = await api("/api/coord/export", { name });
+  if (r && r.ok) toast("已生成坐标文件：" + r.file);
+  else if (r) toast(r.error || "生成失败", false);
+};
+$("btnCoordImport").onclick = () => $("pickCoord").click();
+$("pickCoord").onchange = async e => {
+  const file = e.target.files && e.target.files[0];
+  e.target.value = "";
+  if (!file) return;
+  const content = await file.text();
+  const base = file.name.replace(/\.json$/i, "");
+  const name = $("coordFile").value.trim() || base;
+  const r = await api("/api/coord/import", { name, content });
+  if (r && r.ok) toast("已导入坐标文件：" + r.file);
+  else if (r) toast(r.error || "导入失败", false);
+};
+
+$("btnDoubaoTest").onclick = async () => {
+  const r = await api("/api/doubao/test", {});
+  if (r && r.ok) toast("正在诊断，请看下方日志（会实际移动并点击一次鼠标）");
+  else if (!r) toast("无法连接服务，请先双击启动 bat", false);
+  else toast(r.error || "诊断失败", false);
+};
+
+$("btnDoubaoStart").onclick = async () => {
+  const wait = parseInt($("dbWait").value, 10) || 30;
+  const max = parseInt($("dbMax").value, 10) || 0;
+  if (!confirm("确认开始豆包整理吗？\n\n请确保：\n1. 豆包客户端已打开并置顶可见\n2. 整理期间不要动鼠标和键盘\n\n本次最多处理 " + (max || "全部") + " 条，每条等待约 " + wait + " 秒")) return;
+  busy($("btnDoubaoStart"), "启动中…");
+  const r = await api("/api/doubao/start", { wait_seconds: wait, max_items: max });
+  idle($("btnDoubaoStart"));
+  if (r && r.ok) toast("豆包整理已开始，请看日志；期间请勿动鼠标键盘");
+  else if (!r) toast("无法连接服务，请先双击启动 bat", false);
+  else toast(r.error || "启动失败", false);
+};
+$("btnDoubaoStop").onclick = async () => {
+  await api("/api/doubao/stop", {});
+  toast("已请求停止豆包整理");
+};
+
+// 自动匹配：把模拟点击循环次数设为豆包实际会处理的素材数
+// （未处理，与 refine_loop 扫描源一致）
+$("btnDbAutoMatch").onclick = async () => {
+  const r = await api("/api/doubao/materials");
+  const n = (r && r.items) ? r.items.length : 0;
+  $("dbMax").value = n;
+  toast("已将循环次数匹配为 " + n + " 次（豆包素材共 " + n + " 个文件）");
+};
+
+$("btnSched").onclick = async () => {
+  const minutes = parseInt($("schedMin").value, 10) || 30;
+  const r = await api("/api/schedule", { enabled: true, minutes });
+  if (r && r.ok) { toast("自动同步已开启（每 " + minutes + " 分钟）"); renderStatus(r.status); }
+  else if (!r) toast("无法连接服务，请先双击启动 bat", false);
+};
+$("btnSchedOff").onclick = async () => {
+  const r = await api("/api/schedule", { enabled: false, minutes: parseInt($("schedMin").value, 10) || 30 });
+  if (r && r.ok) { toast("自动同步已关闭"); renderStatus(r.status); }
+  else if (!r) toast("无法连接服务，请先双击启动 bat", false);
+};
+
+$("btnExit").onclick = async () => {
+  if (!confirm("确定要退出知识库助手吗？")) return;
+  await api("/api/exit", {});
+  toast("已退出，可关闭此页面");
+  setTimeout(() => window.close(), 800);
+};
+
+async function pollLogs() {
+  const r = await api("/api/logs?after=" + lastLogId);
+  if (!r || !r.ok) return;
+  if (r.items.length) {
+    const box = $("logbox");
+    for (const it of r.items) {
+      const div = document.createElement("div");
+      div.textContent = it.text;
+      box.appendChild(div);
+    }
+    lastLogId = r.last;
+    box.scrollTop = box.scrollHeight;
+  }
+}
+
+// ---- 启动 ----
+(async () => {
+  const s = await api("/api/status");
+  if (s && s.ok) {
+    if (s.root) $("root").value = s.root;
+    renderStatus(s);
+    await refreshInbox();
+  }
+})();
+setInterval(refreshStatus, 2500);
+setInterval(pollLogs, 900);
+setInterval(refreshInbox, 8000);
+</script>
+</body>
+</html>
