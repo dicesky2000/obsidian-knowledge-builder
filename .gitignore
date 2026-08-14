@@ -24,3 +24,7 @@ analysis/
 Thumbs.db
 Desktop.ini
 .DS_Store
+
+# ---- User overrides (local only) ----
+kbconfig_user.yaml
+

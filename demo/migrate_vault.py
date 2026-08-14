@@ -32,16 +32,16 @@ else:
     log("[备份] 已存在，跳过:", BAK)
 
 # 2) 新根级目录
-os.makedirs(os.path.join(V, "未处理"), exist_ok=True)
-os.makedirs(os.path.join(V, "已处理"), exist_ok=True)
+os.makedirs(os.path.join(V, "01未处理"), exist_ok=True)
+os.makedirs(os.path.join(V, "02已处理"), exist_ok=True)
 log("[新建] 未处理/ 已处理/")
 
 # 3) 文件并入（防御式；预期均为空）
 moves = [
-    (os.path.join(V, "收件箱"), os.path.join(V, "未处理")),
-    (os.path.join(V, "原始素材", "未处理"), os.path.join(V, "未处理")),
-    (os.path.join(V, "原始素材", "未收录"), os.path.join(V, "未处理")),
-    (os.path.join(V, "原始素材", "已处理"), os.path.join(V, "已处理")),
+    (os.path.join(V, "收件箱"), os.path.join(V, "01未处理")),
+    (os.path.join(V, "原始素材", "未处理"), os.path.join(V, "01未处理")),
+    (os.path.join(V, "原始素材", "未收录"), os.path.join(V, "01未处理")),
+    (os.path.join(V, "原始素材", "已处理"), os.path.join(V, "02已处理")),
 ]
 for src, dst in moves:
     if not os.path.isdir(src):

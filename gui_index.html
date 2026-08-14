@@ -6,99 +6,269 @@
 <title>知识库助手</title>
 <style>
   :root {
-    --bg: #f2f5f9; --card: #ffffff; --line: #dfe5ee; --text: #1e2733;
-    --muted: #66707f; --blue: #2563eb; --blue-d: #1d4ed8; --green: #16a34a;
-    --amber: #b45309; --red: #dc2626;
+    /* —— Swiss / 极简：石板灰底 + 翠绿行动色（ui-ux-pro-max 推荐） —— */
+    --bg: #f8fafc;
+    --surface: #ffffff;
+    --ink: #0f172a;            /* 近黑墨，正文高对比 */
+    --muted: #64748b;
+    --primary: #334155;        /* 石板灰：主结构/标题 */
+    --primary-d: #1e293b;
+    --primary-soft: #eef2f6;
+    --accent: #059669;         /* 翠绿：唯一"执行"主色 */
+    --accent-d: #047857;
+    --accent-soft: #ecfdf5;
+    --danger: #dc2626;
+    --danger-soft: #fef2f2;
+    --line: #e2e8f0;
+    --line-2: #cbd5e1;
+    --ring: #94a3b8;
+    --font: "Microsoft YaHei", "PingFang SC", system-ui, -apple-system,
+            BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    --shadow-sm: 0 1px 2px rgba(15,23,42,.04), 0 1px 3px rgba(15,23,42,.06);
+    --shadow-md: 0 6px 20px rgba(15,23,42,.07);
+    --radius: 14px;
   }
   * { box-sizing: border-box; margin: 0; padding: 0; }
-  body { background: var(--bg); color: var(--text); font-family: "Microsoft YaHei", "PingFang SC", -apple-system, sans-serif; line-height: 1.6; }
-  .wrap { max-width: 880px; margin: 0 auto; padding: 24px 16px 60px; }
-  header { text-align: center; padding: 26px 0 8px; }
-  header h1 { font-size: 26px; letter-spacing: 2px; }
-  header p { color: var(--muted); font-size: 13px; margin-top: 6px; }
-  .errbar { display: none; background: #fef2f2; border: 1px solid #fecaca; color: #b91c1c; border-radius: 10px; padding: 12px 16px; font-size: 14px; margin-top: 14px; }
-  .card { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 20px 22px; margin-top: 16px; box-shadow: 0 1px 3px rgba(16,24,40,.05); }
-  .card h2 { font-size: 15px; margin-bottom: 12px; display: flex; align-items: center; gap: 8px; }
-  .card h2 .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--blue); display: inline-block; }
+  html { scroll-behavior: smooth; }
+  body {
+    background: var(--bg);
+    color: var(--ink);
+    font-family: var(--font);
+    line-height: 1.6;
+    font-size: 15px;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+
+  /* ---------- 顶部应用栏（吸顶） ---------- */
+  .appbar {
+    position: sticky; top: 0; z-index: 30;
+    display: flex; align-items: center; justify-content: space-between;
+    gap: 16px; padding: 12px 22px;
+    background: rgba(255,255,255,.82);
+    backdrop-filter: saturate(180%) blur(10px);
+    border-bottom: 1px solid var(--line);
+  }
+  .brand { display: inline-flex; align-items: center; gap: 12px; }
+  .brand-mark {
+    width: 40px; height: 40px; flex: none; color: #fff;
+    background: linear-gradient(135deg, var(--primary) 0%, var(--primary-d) 100%);
+    border-radius: 11px; padding: 8px; box-shadow: var(--shadow-sm);
+  }
+  .brand-text h1 {
+    font-size: 17px; font-weight: 700; letter-spacing: .3px; color: var(--ink);
+    line-height: 1.2;
+  }
+  .brand-text p { font-size: 12px; color: var(--muted); margin-top: 1px; }
+  .appbar-status {
+    display: inline-flex; align-items: center; gap: 7px;
+    font-size: 12.5px; color: var(--muted);
+    background: var(--surface); border: 1px solid var(--line);
+    padding: 6px 12px; border-radius: 999px;
+  }
+  .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+
+  .wrap { max-width: 920px; margin: 0 auto; padding: 22px 18px 64px; }
+
+  /* ---------- 连接错误条 ---------- */
+  .errbar {
+    display: none; background: var(--danger-soft);
+    border: 1px solid #fecaca; color: var(--danger);
+    border-radius: var(--radius); padding: 12px 16px; font-size: 14px; margin-bottom: 18px;
+  }
+
+  /* ---------- 卡片：干净网格质感 ---------- */
+  .card {
+    position: relative; background: var(--surface);
+    border: 1px solid var(--line); border-radius: var(--radius);
+    padding: 20px 22px 22px; margin-top: 16px;
+    box-shadow: var(--shadow-sm);
+    animation: rise .45s ease both;
+  }
+  .card:nth-of-type(2) { animation-delay: .03s; }
+  .card:nth-of-type(3) { animation-delay: .06s; }
+  .card:nth-of-type(4) { animation-delay: .09s; }
+  .card:nth-of-type(5) { animation-delay: .12s; }
+  .card:nth-of-type(6) { animation-delay: .15s; }
+  .card:nth-of-type(7) { animation-delay: .18s; }
+  .card:nth-of-type(8) { animation-delay: .21s; }
+  .card:nth-of-type(9) { animation-delay: .24s; }
+  .card h2 {
+    font-size: 15.5px; font-weight: 700; letter-spacing: .2px;
+    display: flex; align-items: center; gap: 10px;
+    padding-bottom: 12px; margin-bottom: 14px;
+    border-bottom: 1px solid var(--line);
+  }
+  .cat-no {
+    flex: none; min-width: 28px; height: 24px;
+    display: inline-flex; align-items: center; justify-content: center;
+    font-size: 12px; font-weight: 700; color: #fff;
+    background: var(--primary); border-radius: 7px; letter-spacing: .5px;
+  }
+
   .row { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
-  input[type=text], input[type=number] { border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; font-size: 14px; outline: none; flex: 1; min-width: 240px; }
-  input[type=text]:focus { border-color: var(--blue); }
-  .btn { border: none; border-radius: 10px; padding: 12px 18px; font-size: 15px; cursor: pointer; color: #fff; background: var(--blue); transition: .15s; }
-  .btn:hover { background: var(--blue-d); }
-  .btn.green { background: var(--green); }
-  .btn.gray { background: #64748b; }
-  .btn.red { background: var(--red); }
-  .btn.soft { background: #eef2f7; color: #475569; }
-  .btn:disabled { opacity: .45; cursor: not-allowed; }
-  .hint { font-size: 12px; color: var(--muted); margin-top: 8px; }
-  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; }
-  .stat { background: #f8fafc; border: 1px solid var(--line); border-radius: 10px; padding: 12px; text-align: center; }
-  .stat b { font-size: 22px; color: var(--blue); display: block; }
-  .stat span { font-size: 12px; color: var(--muted); }
-  .status-line { font-size: 13px; color: var(--muted); margin-bottom: 10px; }
-  .status-line b { color: var(--text); }
-  .logbox { background: #0f172a; color: #dbeafe; border-radius: 10px; padding: 14px; height: 50vh; overflow-y: auto; font-family: Consolas, "Courier New", monospace; font-size: 12.5px; line-height: 1.7; white-space: pre-wrap; word-break: break-all; }
-  .tag { display: inline-block; padding: 2px 10px; border-radius: 999px; font-size: 12px; margin-right: 6px; }
-  .tag.on { background: #dcfce7; color: #15803d; }
-  .tag.off { background: #fee2e2; color: #b91c1c; }
-  footer { text-align: center; color: var(--muted); font-size: 12px; margin-top: 24px; }
-  .toast { position: fixed; top: 18px; left: 50%; transform: translateX(-50%); background: #1e293b; color: #fff; padding: 10px 22px; border-radius: 10px; font-size: 14px; box-shadow: 0 4px 14px rgba(0,0,0,.2); display: none; z-index: 99; }
-  .inbox-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+  .hint { font-size: 12.5px; color: var(--muted); margin-top: 10px; line-height: 1.7; }
+  .hint b { color: var(--ink); font-weight: 600; }
+
+  input[type=text], input[type=number], select {
+    border: 1px solid var(--line); border-radius: 10px;
+    padding: 10px 12px; font-size: 14px; font-family: var(--font);
+    outline: none; flex: 1; min-width: 200px; color: var(--ink);
+    background: #fff; transition: border-color .15s ease, box-shadow .15s ease;
+  }
+  input[type=text]:focus, input[type=number]:focus, select:focus {
+    border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft);
+  }
+
+  /* ---------- 按钮体系 ---------- */
+  .btn {
+    border: 1px solid transparent; border-radius: 10px;
+    padding: 10px 16px; font-size: 14px; font-weight: 600; font-family: var(--font);
+    cursor: pointer; color: #fff; background: var(--primary);
+    transition: transform .12s ease, background .15s ease, box-shadow .15s ease, border-color .15s ease;
+  }
+  .btn:hover { background: var(--primary-d); transform: translateY(-1px); }
+  .btn:active { transform: translateY(0); }
+  .btn.go { background: var(--accent); box-shadow: 0 2px 8px rgba(5,150,105,.25); }
+  .btn.go:hover { background: var(--accent-d); }
+  .btn.ghost { background: #fff; color: var(--primary); border-color: var(--line-2); }
+  .btn.ghost:hover { background: var(--primary-soft); border-color: var(--primary); }
+  .btn.soft { background: #f1f5f9; color: #475569; border-color: transparent; }
+  .btn.soft:hover { background: #e2e8f0; }
+  .btn.danger { background: #fff; color: var(--danger); border-color: #fecaca; }
+  .btn.danger:hover { background: var(--danger-soft); }
+  .btn:disabled { opacity: .45; cursor: not-allowed; transform: none; }
+  .btn:focus-visible, input:focus-visible, select:focus-visible,
+  a:focus-visible, [tabindex]:focus-visible {
+    outline: 2px solid var(--ring); outline-offset: 2px;
+  }
+
+  /* ---------- 待同步资料列表 ---------- */
+  .inbox-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; gap: 8px; flex-wrap: wrap; }
   .inbox-head span { font-size: 13px; color: var(--muted); }
-  .inbox-list { border: 1px solid var(--line); border-radius: 10px; max-height: 260px; overflow-y: auto; }
-  .inbox-item { display: flex; align-items: center; gap: 10px; padding: 8px 12px; border-bottom: 1px solid #f1f5f9; font-size: 13.5px; }
+  .inbox-list {
+    border: 1px solid var(--line); border-radius: 12px;
+    max-height: 280px; overflow-y: auto; background: #fff;
+  }
+  .inbox-item {
+    display: flex; align-items: center; gap: 10px;
+    padding: 9px 13px; border-bottom: 1px solid #f1f5f9; font-size: 13.5px;
+    transition: background .12s ease;
+  }
+  .inbox-item:hover { background: #f8fafc; }
   .inbox-item:last-child { border-bottom: none; }
-  .inbox-item input { width: 16px; height: 16px; }
+  .inbox-item input { width: 16px; height: 16px; accent-color: var(--accent); cursor: pointer; }
   .inbox-item .nm { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .inbox-item .sz { color: var(--muted); font-size: 12px; width: 70px; text-align: right; }
   .inbox-item .tm { color: var(--muted); font-size: 12px; width: 130px; text-align: right; }
-  .src-badge { font-size: 11px; color: #b45309; background: #fef3c7; border: 1px solid #fde68a; border-radius: 6px; padding: 1px 7px; margin-right: 8px; white-space: nowrap; }
-  .empty { color: var(--muted); font-size: 13px; padding: 14px; text-align: center; }
+  .src-badge {
+    font-size: 11px; color: var(--accent-d); background: var(--accent-soft);
+    border: 1px solid #bbf7d0; border-radius: 6px; padding: 1px 7px;
+    margin-right: 8px; white-space: nowrap;
+  }
+  .empty { color: var(--muted); font-size: 13px; padding: 18px; text-align: center; }
+
+  /* ---------- 结果统计 ---------- */
+  .status-line { font-size: 13px; color: var(--muted); margin-bottom: 12px; }
+  .status-line b { color: var(--ink); }
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 10px; }
+  .stat {
+    background: linear-gradient(180deg, #ffffff, #f8fafc);
+    border: 1px solid var(--line); border-radius: 12px; padding: 14px 12px; text-align: center;
+  }
+  .stat b { font-size: 24px; font-weight: 700; color: var(--accent); display: block; line-height: 1.1; }
+  .stat span { font-size: 12px; color: var(--muted); }
+
+  /* ---------- 状态标签 ---------- */
+  .tag { display: inline-block; padding: 3px 11px; border-radius: 999px; font-size: 12px; font-weight: 600; }
+  .tag.on { background: var(--accent-soft); color: var(--accent-d); }
+  .tag.off { background: #fef2f2; color: var(--danger); }
+
+  /* ---------- 日志框（保留深色，便于阅读） ---------- */
+  .logbox {
+    background: #0f172a; color: #cbd5e1;
+    border-radius: 12px; padding: 14px; height: 48vh; overflow-y: auto;
+    font-family: "Cascadia Code", Consolas, "Courier New", monospace; font-size: 12.5px;
+    line-height: 1.7; white-space: pre-wrap; word-break: break-all;
+    border: 1px solid #020617;
+  }
+
+  /* ---------- 提示横幅 / 页脚 ---------- */
+  .toast {
+    position: fixed; top: 18px; left: 50%; transform: translateX(-50%);
+    background: #0f172a; color: #fff; padding: 10px 22px; border-radius: 10px;
+    font-size: 14px; box-shadow: 0 6px 18px rgba(0,0,0,.22);
+    display: none; z-index: 99;
+  }
+  footer { text-align: center; color: var(--muted); font-size: 12px; margin-top: 28px; }
+  footer p { margin-top: 10px; }
+
+  @keyframes rise { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+  @media (prefers-reduced-motion: reduce) {
+    .card, .btn, html { animation: none !important; transition: none !important; scroll-behavior: auto !important; }
+  }
+  @media (max-width: 560px) {
+    .wrap { padding: 16px 12px 48px; }
+    .appbar { padding: 10px 14px; }
+    .brand-text h1 { font-size: 15px; }
+    input[type=text], input[type=number], select { min-width: 140px; }
+  }
 </style>
 </head>
 <body>
 <div class="toast" id="toast"></div>
 
-<div class="wrap">
-  <header>
-    <h1>📚 知识库助手</h1>
-    <p>自动搭建 Obsidian 知识库 · 一键整理 · 自动建立知识链接</p>
-  </header>
+<header class="appbar">
+  <div class="brand">
+    <svg class="brand-mark" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+      <path d="M4 5.5C4 4.7 5.3 4 7 4h4v15H7c-1.7 0-3-.7-3-1.5V5.5Z"/>
+      <path d="M20 5.5C20 4.7 18.7 4 17 4h-4v15h4c1.7 0 3-.7 3-1.5V5.5Z"/>
+      <path d="M12 4v15"/>
+    </svg>
+    <div class="brand-text">
+      <h1>知识库助手</h1>
+      <p>把零散资料，自动整理成你自己的知识库</p>
+    </div>
+  </div>
+  <div class="appbar-status" title="本地运行 · 数据不上传">
+    <span class="dot"></span>本地运行 · 数据不上传
+  </div>
+</header>
 
+<div class="wrap">
   <div class="errbar" id="errbar">
     ⚠ 无法连接知识库助手服务 —— 请先双击「launch-kb-assistant.bat」，然后刷新本页面。
   </div>
 
   <!-- ① 知识库位置 -->
   <div class="card">
-    <h2><span class="dot"></span>第一步：知识库放在哪里</h2>
+    <h2><span class="cat-no">01</span>知识库放在哪里</h2>
     <div class="row">
       <input type="text" id="root" placeholder="例如：D:\我的知识库">
-      <button class="btn" id="btnSetRoot">保存位置</button>
-      <button class="btn gray" id="btnOpenPath">打开该路径</button>
+      <button class="btn ghost" id="btnSetRoot">保存位置</button>
+      <button class="btn ghost" id="btnOpenPath">打开该路径</button>
     </div>
-    <div class="hint">选择一个空文件夹或新文件夹，程序会在里面自动创建「未处理 / 已处理 / 知识提炼 / 知识聚合 / 规则模板」等标准结构。填好后点「保存位置」，再点「① 创建知识库」；也可直接点「打开该路径」在文件管理器里查看/新建。</div>
+    <div class="hint">选一个空文件夹或新文件夹，程序会在里面自动创建「01未处理 / 02已处理 / 03知识提炼 / 04知识聚合 / 05规则模板」等标准结构。填好后点「保存位置」，再点「① 创建知识库」；也可直接点「打开该路径」在文件管理器里查看或新建。</div>
   </div>
 
-  <!-- ② 常用操作 -->
+  <!-- ② 日常操作 -->
   <div class="card">
-    <h2><span class="dot"></span>第二步：日常操作（点一下就行）</h2>
+    <h2><span class="cat-no">02</span>日常操作（点一下就行）</h2>
     <div class="row">
-      <button class="btn gray" id="btnInit">① 创建知识库</button>
+      <button class="btn ghost" id="btnInit">① 创建知识库</button>
       <button class="btn" id="btnPickFolder">② 选择资料文件夹</button>
       <button class="btn" id="btnPickFiles">选择资料文件</button>
-      <button class="btn green" id="btnSync">③ 一键同步整理</button>
-      <button class="btn gray" id="btnOpen">打开知识库文件夹</button>
+      <button class="btn ghost" id="btnOpen">打开知识库文件夹</button>
     </div>
     <input type="file" id="pickFolder" webkitdirectory style="display:none">
     <input type="file" id="pickFiles" multiple style="display:none">
-    <div class="hint">提示：点「一键同步」会把「未处理」里的资料一起整理成标准笔记、自动打标签、自动建立知识链接，并生成处理报告。</div>
-    <div class="hint" id="uploadTip" style="color:var(--green);display:none"></div>
+    <div class="hint">把资料放进「01未处理」后，用下方「豆包自动整理」批量提炼成标准笔记并自动建立知识链接。</div>
+    <div class="hint" id="uploadTip" style="color:var(--accent-d);display:none"></div>
   </div>
 
   <!-- ③ 待同步资料 -->
   <div class="card">
-    <h2><span class="dot"></span>待同步资料（未处理，同步前可随时删减）</h2>
+    <h2><span class="cat-no">03</span>待整理资料（01未处理，整理前可随时删减）</h2>
     <div class="inbox-head">
       <span class="row" style="gap:10px">
         <input type="checkbox" id="inboxSelAll" title="全选 / 取消全选">
@@ -106,7 +276,7 @@
       </span>
       <span class="row" style="gap:8px">
         <button class="btn soft" id="btnDelSel">删除所选</button>
-        <button class="btn soft" id="btnClearInbox">清空未处理</button>
+        <button class="btn soft" id="btnClearInbox">清空01未处理</button>
         <button class="btn soft" id="btnRefreshInbox">刷新</button>
       </span>
     </div>
@@ -118,7 +288,7 @@
 
   <!-- ④ 最近结果 -->
   <div class="card">
-    <h2><span class="dot"></span>最近一次处理结果</h2>
+    <h2><span class="cat-no">04</span>最近一次处理结果</h2>
     <div class="status-line" id="vaultStatus">知识库：未设置</div>
     <div class="grid" id="statGrid">
       <div class="stat"><b>—</b><span>导入文件</span></div>
@@ -126,27 +296,27 @@
       <div class="stat"><b>—</b><span>新增双链</span></div>
       <div class="stat"><b>—</b><span>索引页</span></div>
     </div>
-    <div class="row" style="margin-top:12px">
-      <button class="btn gray" id="btnReport">查看完整处理报告</button>
+    <div class="row" style="margin-top:14px">
+      <button class="btn ghost" id="btnReport">查看完整处理报告</button>
     </div>
   </div>
 
   <!-- ⑤ 豆包自动整理 -->
   <div class="card">
-    <h2><span class="dot"></span>豆包自动整理（让豆包帮你提炼笔记）</h2>
-    <div class="hint" style="margin-bottom:10px">流程：把素材放进知识库的 <b>未处理</b> 文件夹（豆包会自动扫描这一处）→ 点「开始」约 2 秒后自动把豆包切前台并最大化 → 程序把素材按 D 层提示词模板发给豆包，自动复制回复生成 B 层笔记（素材随之移入「已处理」）。先记录三个按钮位置（鼠标移到豆包对应位置按 F6）。整理期间<b>不要动鼠标和键盘</b>。</div>
+    <h2><span class="cat-no">05</span>豆包自动整理（让豆包帮你提炼笔记）</h2>
+    <div class="hint" style="margin-bottom:12px">流程：把素材放进知识库的 <b>01未处理</b> 文件夹（豆包会自动扫描这一处）→ 点「开始」约 2 秒后自动把豆包切前台并最大化 → 程序把素材按 D 层提示词模板发给豆包，自动复制回复生成 B 层笔记（素材随之移入「02已处理」）。先记录三个按钮位置（鼠标移到豆包对应位置按 F6）。整理期间<b>不要动鼠标和键盘</b>。</div>
 
     <div class="status-line" id="coordStatus">坐标：未记录</div>
     <div class="row" style="margin-bottom:8px">
       <label style="font-size:14px">坐标文件</label>
       <input type="text" id="coordFile" placeholder="豆包坐标" style="min-width:120px">
-      <button class="btn soft" id="btnCoordUse">使用该文件</button>
-      <select id="coordFileList" style="padding:9px;border:1px solid var(--line);border-radius:8px"></select>
+      <button class="btn ghost" id="btnCoordUse">使用该文件</button>
+      <select id="coordFileList" style="min-width:160px"></select>
     </div>
     <div class="row">
-      <button class="btn gray" id="btnRecInput">记录输入框坐标</button>
-      <button class="btn gray" id="btnRecScroll">记录下翻坐标</button>
-      <button class="btn gray" id="btnRecCopy">记录复制坐标</button>
+      <button class="btn ghost" id="btnRecInput">记录输入框坐标</button>
+      <button class="btn ghost" id="btnRecScroll">记录下翻坐标</button>
+      <button class="btn ghost" id="btnRecCopy">记录复制坐标</button>
       <button class="btn soft" id="btnCoordCancel" style="display:none">取消记录</button>
       <button class="btn soft" id="btnCoordExport">生成坐标文件</button>
       <button class="btn soft" id="btnCoordImport">导入坐标文件</button>
@@ -155,7 +325,7 @@
     </div>
     <input type="file" id="pickCoord" accept=".json,application/json" style="display:none">
     <div class="hint">坐标只需记录一次并保存为文件（可存多套，如"家用电脑"、"办公室"），下次直接用「使用该文件」切换即可，无需重新记录。</div>
-    <div class="row" style="margin-top:12px">
+    <div class="row" style="margin-top:14px">
       <label style="font-size:14px">等待豆包生成
         <input type="number" id="dbWait" min="5" max="300" style="width:70px;min-width:0" value="30">
         秒
@@ -165,58 +335,58 @@
         次（0=全部处理）
       </label>
       <button class="btn soft" id="btnDbAutoMatch" title="把循环次数设为「待同步资料」里的文件数">自动匹配</button>
-      <button class="btn green" id="btnDoubaoStart">开始豆包整理</button>
-      <button class="btn red" id="btnDoubaoStop" style="display:none">停止</button>
+      <button class="btn go" id="btnDoubaoStart">开始豆包整理</button>
+      <button class="btn danger" id="btnDoubaoStop" style="display:none">停止</button>
     </div>
-    <div class="hint" id="dbTip" style="color:var(--amber);display:none">⏳ 正在等待您把鼠标移到指定位置……</div>
+
+    <!-- 提示词格式配置 -->
+    <div style="margin-top:14px;border-top:1px dashed #cbd5e1;padding-top:12px">
+      <div class="hint" style="margin-bottom:8px">「发送格式」是发给豆包的完整提示词，<b>{素材内容}</b> 处会自动替换为素材正文；「生成格式」随提示词一起发给豆包，作为 B 层笔记的输出格式要求。保存后写回知识库 <b>05规则模板/</b> 目录。</div>
+      <div style="margin-bottom:4px"><label style="font-size:14px;font-weight:600">发送格式（发给豆包的提示词）</label></div>
+      <textarea id="promptSend" rows="14" spellcheck="false"
+        style="width:100%;font-family:ui-monospace,Consolas,monospace;font-size:13px;line-height:1.5;resize:vertical;box-sizing:border-box"></textarea>
+      <div style="margin:10px 0 4px"><label style="font-size:14px;font-weight:600">生成格式（B 层笔记格式要求，随提示词发给豆包）</label></div>
+      <textarea id="promptNote" rows="10" spellcheck="false"
+        style="width:100%;font-family:ui-monospace,Consolas,monospace;font-size:13px;line-height:1.5;resize:vertical;box-sizing:border-box"></textarea>
+      <div style="margin-top:8px">
+        <button class="btn" id="btnPromptSave">保存提示词格式</button>
+      </div>
+    </div>
+
+    <div class="hint" id="dbTip" style="color:var(--accent-d);display:none">⏳ 正在等待您把鼠标移到指定位置……</div>
   </div>
 
-  <!-- ⑥ 自动同步 -->
+  <!-- ⑥ 高级设置 -->
   <div class="card">
-    <h2><span class="dot"></span>自动同步（可选）</h2>
-    <div class="row">
-      <span id="schedTag" class="tag off">未开启</span>
-      <label style="font-size:14px">每隔
-        <input type="number" id="schedMin" min="5" max="1440" style="width:80px;min-width:0" value="30">
-        分钟自动整理一次
-      </label>
-      <button class="btn" id="btnSched">开启自动同步</button>
-      <button class="btn gray" id="btnSchedOff">关闭</button>
-    </div>
-    <div class="hint">开启后，程序会按间隔时间自动执行「一键同步」；关闭窗口或点下方「退出」即停止。</div>
-  </div>
-
-  <!-- ⑦ 高级设置 -->
-  <div class="card">
-    <h2><span class="dot"></span>高级设置：存放位置（可自定义）</h2>
-    <div class="hint" style="margin-bottom:10px">留空则使用默认位置。填写后点「保存」，只影响之后整理的文件。</div>
+    <h2><span class="cat-no">06</span>高级设置：存放位置（可自定义）</h2>
+    <div class="hint" style="margin-bottom:12px">留空则使用默认位置。填写后点「保存」，只影响之后整理的文件。</div>
     <div class="row" style="margin-bottom:8px">
       <label style="font-size:14px;width:90px">笔记目录</label>
-      <input type="text" id="dirNote" placeholder="默认：知识提炼">
+      <input type="text" id="dirNote" placeholder="默认：03知识提炼">
     </div>
     <div class="row" style="margin-bottom:8px">
       <label style="font-size:14px;width:90px">报告目录</label>
       <input type="text" id="dirReport" placeholder="默认：处理日志">
     </div>
     <div class="row" style="margin-bottom:8px">
-      <label style="font-size:14px;width:90px">附件目录</label>
-      <input type="text" id="dirAttach" placeholder="默认：附件">
+      <label style="font-size:14px;width:90px">06附件目录</label>
+      <input type="text" id="dirAttach" placeholder="默认：06附件">
     </div>
-    <div class="row" style="margin-top:12px">
+    <div class="row" style="margin-top:14px">
       <button class="btn" id="btnDirSave">保存存放位置</button>
     </div>
     <div class="hint">目录名相对于知识库根目录，例如填「我的笔记」就是 <b>知识库/我的笔记</b>。</div>
   </div>
 
-  <!-- ⑧ 运行日志 -->
+  <!-- ⑦ 运行日志 -->
   <div class="card">
-    <h2><span class="dot"></span>运行日志</h2>
+    <h2><span class="cat-no">07</span>运行日志</h2>
     <div class="logbox" id="logbox"></div>
   </div>
 
   <footer>
     <button class="btn soft" id="btnExit">退出知识库助手</button>
-    <p style="margin-top:10px">所有资料只保存在您自己的电脑上，本程序不上传任何数据。</p>
+    <p>所有资料只保存在您自己的电脑上，本程序不上传任何数据。</p>
   </footer>
 </div>
 
@@ -281,7 +451,7 @@ function fmtSize(n) {
 }
 
 function setButtons(disabled) {
-  ["btnInit", "btnSync", "btnSetRoot"].forEach(id => { $(id).disabled = disabled; });
+  ["btnInit", "btnSetRoot"].forEach(id => { $(id).disabled = disabled; });
 }
 
 function renderStatus(s) {
@@ -293,9 +463,6 @@ function renderStatus(s) {
   } else {
     $("vaultStatus").textContent = "知识库：未设置";
   }
-  $("schedTag").textContent = s.schedule_enabled ? "已开启" : "未开启";
-  $("schedTag").className = "tag " + (s.schedule_enabled ? "on" : "off");
-  $("schedMin").value = s.schedule_minutes || 30;
   setButtons(s.busy || !connected);
   if (s.summary) {
     const map = { "导入文件数": 0, "新增笔记数": 1, "新增双链数": 2, "MOC 索引页": 3 };
@@ -313,6 +480,7 @@ async function refreshStatus() {
     renderStatus(s);
     renderDoubao(s);
     if (!dirsLoaded) { fillDirs(s.dirs); dirsLoaded = true; }
+    if (!promptsLoaded) { fillPrompts(s.prompts); promptsLoaded = true; }
   }
 }
 
@@ -322,6 +490,13 @@ function fillDirs(dirs) {
   if (dirs["笔记"] !== undefined) $("dirNote").value = dirs["笔记"] || "";
   if (dirs["报告"] !== undefined) $("dirReport").value = dirs["报告"] || "";
   if (dirs["附件"] !== undefined) $("dirAttach").value = dirs["附件"] || "";
+}
+
+let promptsLoaded = false;
+function fillPrompts(prompts) {
+  if (!prompts) return;
+  if (prompts.send_format !== undefined) $("promptSend").value = prompts.send_format || "";
+  if (prompts.note_format !== undefined) $("promptNote").value = prompts.note_format || "";
 }
 
 function renderDoubao(s) {
@@ -374,9 +549,9 @@ $("coordFile").addEventListener("input", () => { coordFileTouched = true; });
 
 function renderInbox(items) {
   const list = $("inboxList");
-  // 按来源统计数量（统一为「未处理」）
+  // 按来源统计数量（统一为「01未处理」）
   const bd = {};
-  items.forEach(it => { const s = it.source || "未处理"; bd[s] = (bd[s] || 0) + 1; });
+  items.forEach(it => { const s = it.source || "01未处理"; bd[s] = (bd[s] || 0) + 1; });
   const parts = Object.keys(bd).map(k => k + " " + bd[k]);
   $("inboxCount").innerHTML = "共 " + items.length + " 个文件" +
     (parts.length ? "（" + parts.join(" · ") + "）" : "");
@@ -390,8 +565,8 @@ function renderInbox(items) {
   items.forEach(it => {
     const row = document.createElement("label");
     row.className = "inbox-item";
-    const src = it.source || "未处理";
-    const badge = src === "未处理" ? "" :
+    const src = it.source || "01未处理";
+    const badge = src === "01未处理" ? "" :
       '<span class="src-badge">' + src.replace(/</g, "&lt;") + "</span>";
     row.innerHTML =
       '<input type="checkbox" data-name="' + it.name.replace(/"/g, "&quot;") +
@@ -413,7 +588,7 @@ function selectedItems() {
   const out = [];
   document.querySelectorAll("#inboxList input:checked").forEach(cb => {
     out.push({ name: cb.getAttribute("data-name"),
-               source: cb.getAttribute("data-source") || "未处理" });
+               source: cb.getAttribute("data-source") || "01未处理" });
   });
   return out;
 }
@@ -445,15 +620,6 @@ $("btnInit").onclick = async () => {
   else toast(r.error || "失败", false);
 };
 
-$("btnSync").onclick = async () => {
-  busy($("btnSync"), "同步中…");
-  const r = await api("/api/sync", {});
-  if (r && r.ok) toast("正在同步整理，请看下方日志");
-  else if (!r) toast("无法连接服务，请先双击启动 bat", false);
-  else toast(r.error || "失败", false);
-  idle($("btnSync"));
-};
-
 $("btnOpen").onclick = async () => {
   const r = await api("/api/open", {});
   toast(r ? (r.ok ? "已打开知识库文件夹" : (r.error || "失败")) : "无法连接服务", r && r.ok);
@@ -474,7 +640,7 @@ async function uploadFiles(fileList, folderMode) {
   const MAX = 50 * 1024 * 1024;
   const pairs = [];
   for (const file of fileList) {
-    if (file.size > MAX) { tip.textContent = "已跳过超大文件：" + file.name + "（>50MB，请手动放入未处理）"; continue; }
+    if (file.size > MAX) { tip.textContent = "已跳过超大文件：" + file.name + "（>50MB，请手动放入01未处理）"; continue; }
     const rel = folderMode && file.webkitRelativePath
       ? file.webkitRelativePath.split("/").slice(1).join("/")
       : file.name;
@@ -482,7 +648,7 @@ async function uploadFiles(fileList, folderMode) {
   }
   const CHUNK = 10;
   let done = 0;
-  tip.textContent = "正在放入未处理：0/" + pairs.length;
+  tip.textContent = "正在放入01未处理：0/" + pairs.length;
   for (let i = 0; i < pairs.length; i += CHUNK) {
     const chunk = pairs.slice(i, i + CHUNK);
     const files = [];
@@ -498,10 +664,10 @@ async function uploadFiles(fileList, folderMode) {
     const r = await api("/api/upload", { files });
     if (!r) { toast("无法连接服务，请先双击启动 bat", false); return; }
     done += chunk.length;
-    tip.textContent = "正在放入未处理：" + done + "/" + pairs.length;
+    tip.textContent = "正在放入01未处理：" + done + "/" + pairs.length;
   }
-  tip.textContent = "完成：共 " + pairs.length + " 个文件放入未处理，可在下方列表检查/删减，然后点「③ 一键同步整理」🎉";
-  toast("资料已放入未处理 ✓");
+  tip.textContent = "完成：共 " + pairs.length + " 个文件放入01未处理，可在下方列表检查/删减，然后点「豆包自动整理」🎉";
+  toast("资料已放入01未处理 ✓");
   await refreshInbox();
 }
 
@@ -525,20 +691,20 @@ $("btnClearInbox").onclick = async () => {
   const items = [];
   document.querySelectorAll("#inboxList input").forEach(cb => {
     items.push({ name: cb.getAttribute("data-name"),
-                 source: cb.getAttribute("data-source") || "未处理" });
+                 source: cb.getAttribute("data-source") || "01未处理" });
   });
-  if (!items.length) { toast("未处理里已经是空的", false); return; }
-  if (!confirm("确定清空未处理里的 " + items.length + " 个文件吗？（会移到 _kb_回收站，可找回）")) return;
+  if (!items.length) { toast("01未处理里已经是空的", false); return; }
+  if (!confirm("确定清空01未处理里的 " + items.length + " 个文件吗？（会移到 _kb_回收站，可找回）")) return;
   busy($("btnClearInbox"), "清空中…");
   const r = await api("/api/inbox/delete", { items });
   idle($("btnClearInbox"));
   if (r && r.ok) {
-    toast("已清空未处理 ✓");
+    toast("已清空01未处理 ✓");
     renderInbox(r.items || []);
   } else if (!r) toast("无法连接服务，请先双击启动 bat", false);
 };
 
-// 全选 / 取消全选：联动未处理列表内所有复选框
+// 全选 / 取消全选：联动01未处理列表内所有复选框
 $("inboxSelAll").onchange = () => {
   const checked = $("inboxSelAll").checked;
   document.querySelectorAll("#inboxList input[type=checkbox]").forEach(cb => {
@@ -559,6 +725,18 @@ $("btnDirSave").onclick = async () => {
   const r = await api("/api/dirs", { dirs });
   idle($("btnDirSave"));
   if (r && r.ok) toast("存放位置已保存 ✓（影响之后整理的文件）");
+  else if (!r) toast("无法连接服务，请先双击启动 bat", false);
+  else toast(r.error || "保存失败", false);
+};
+
+$("btnPromptSave").onclick = async () => {
+  busy($("btnPromptSave"), "保存中…");
+  const r = await api("/api/prompts", {
+    send_format: $("promptSend").value,
+    note_format: $("promptNote").value,
+  });
+  idle($("btnPromptSave"));
+  if (r && r.ok) toast("提示词格式已保存 ✓（已写回知识库 05规则模板/）");
   else if (!r) toast("无法连接服务，请先双击启动 bat", false);
   else toast(r.error || "保存失败", false);
 };
@@ -641,24 +819,12 @@ $("btnDoubaoStop").onclick = async () => {
 };
 
 // 自动匹配：把模拟点击循环次数设为豆包实际会处理的素材数
-// （未处理，与 refine_loop 扫描源一致）
+// （01未处理，与 refine_loop 扫描源一致）
 $("btnDbAutoMatch").onclick = async () => {
   const r = await api("/api/doubao/materials");
   const n = (r && r.items) ? r.items.length : 0;
   $("dbMax").value = n;
   toast("已将循环次数匹配为 " + n + " 次（豆包素材共 " + n + " 个文件）");
-};
-
-$("btnSched").onclick = async () => {
-  const minutes = parseInt($("schedMin").value, 10) || 30;
-  const r = await api("/api/schedule", { enabled: true, minutes });
-  if (r && r.ok) { toast("自动同步已开启（每 " + minutes + " 分钟）"); renderStatus(r.status); }
-  else if (!r) toast("无法连接服务，请先双击启动 bat", false);
-};
-$("btnSchedOff").onclick = async () => {
-  const r = await api("/api/schedule", { enabled: false, minutes: parseInt($("schedMin").value, 10) || 30 });
-  if (r && r.ok) { toast("自动同步已关闭"); renderStatus(r.status); }
-  else if (!r) toast("无法连接服务，请先双击启动 bat", false);
 };
 
 $("btnExit").onclick = async () => {

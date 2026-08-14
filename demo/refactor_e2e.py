@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""重构后端到端自测：扁平结构（未处理/已处理）验证。"""
+"""重构后端到端自测：扁平结构（01未处理/02已处理）验证。"""
 import io
 import os
 import sys
@@ -36,9 +36,9 @@ try:
     cfg = config.load_config(CFG, cwd=BASE)
     keys = list(cfg["structure"].keys())
     say("[1 config] structure:", keys)
-    assert "未处理" in cfg["structure"] and "已处理" in cfg["structure"]
+    assert "01未处理" in cfg["structure"] and "02已处理" in cfg["structure"]
     assert "收件箱" not in cfg["structure"] and "原始素材" not in cfg["structure"]
-    assert cfg["import"]["inbox"] == "未处理"
+    assert cfg["import"]["inbox"] == "0101未处理"
     assert cfg["import"]["extra_sources"] == []
     say("[1] OK")
 
@@ -46,21 +46,21 @@ try:
     logger, _ = logger_mod.setup_logging(cfg["logging"]["log_dir"], VAULT)
     st = vault.init_vault(cfg, VAULT, logger=logger)
     say("[2 init] stats:", st)
-    for d in ["未处理", "已处理", "知识提炼", "知识聚合", "知识聚合/MOC",
-              "规则模板", "附件", "日记"]:
+    for d in ["0101未处理", "02已处理", "03知识提炼", "04知识聚合", "04知识聚合/MOC",
+              "05规则模板", "06附件", "07日记"]:
         assert os.path.isdir(os.path.join(VAULT, d)), d
     assert not os.path.isdir(os.path.join(VAULT, "原始素材"))
     assert not os.path.isdir(os.path.join(VAULT, "收件箱"))
     say("[2] OK 目录结构正确（无 原始素材/收件箱）")
 
-    # 3) 放样本到未处理
-    up = os.path.join(VAULT, "未处理")
+    # 3) 放样本到01未处理
+    up = os.path.join(VAULT, "0101未处理")
     with open(os.path.join(up, "AI与知识库.md"), "w", encoding="utf-8") as f:
         f.write("# AI与知识库\n用 AI 工具自动提炼笔记，建立双链。\n")
     with open(os.path.join(up, "轨道车辆标准.txt"), "w", encoding="utf-8") as f:
         f.write("轨道交通车辆设计标准笔记，牵引系统与辅助供电。\n")
 
-    # 4) 豆包扫描源 = 单一 未处理
+    # 4) 豆包扫描源 = 单一 01未处理
     sources = doubao_automation._iter_material_sources(cfg, VAULT)
     say("[4 doubao sources]", sources)
     assert sources == [os.path.abspath(up)]
@@ -80,38 +80,38 @@ try:
         % (report.scanned, report.imported, report.new_notes,
            report.attachments, report.failed))
     assert report.failed == 0, "sync 有失败: %s" % report.errors
-    b = os.path.join(VAULT, "知识提炼")
+    b = os.path.join(VAULT, "03知识提炼")
     notes = [f for f in os.listdir(b) if f.endswith(".md")]
-    say("[5] 知识提炼 笔记:", notes)
+    say("[5] 03知识提炼 笔记:", notes)
     assert len(notes) >= 2
-    # 源文件应移入 已处理，未处理清空
-    say("[5] 未处理 剩余:", os.listdir(up))
-    say("[5] 已处理:", os.listdir(os.path.join(VAULT, "已处理")))
-    assert len(os.listdir(up)) == 0, "未处理 应已清空"
-    assert len(os.listdir(os.path.join(VAULT, "已处理"))) == 2
+    # 源文件应移入 02已处理，01未处理清空
+    say("[5] 01未处理 剩余:", os.listdir(up))
+    say("[5] 02已处理:", os.listdir(os.path.join(VAULT, "02已处理")))
+    assert len(os.listdir(up)) == 0, "01未处理 应已清空"
+    assert len(os.listdir(os.path.join(VAULT, "02已处理"))) == 2
     # 报告存在（与真实 sync 流程一致：调用 write_report）
     import datetime
     started = datetime.datetime.now() - datetime.timedelta(seconds=1)
     rpt = logger_mod.write_report(report, VAULT, cfg["logging"]["log_dir"], started, 1.0)
     say("[5] 处理报告:", rpt)
     assert os.path.isfile(rpt)
-    say("[5] OK 笔记生成 + 源移入已处理 + 报告生成")
+    say("[5] OK 笔记生成 + 源移入02已处理 + 报告生成")
 
     # 6) GUI 辅助函数
     gui_server._state["root"] = VAULT
     sdirs = gui_server._import_source_dirs()
     say("[6 _import_source_dirs]", sdirs)
-    assert sdirs == [("未处理", os.path.abspath(up))]
+    assert sdirs == [("0101未处理", os.path.abspath(up))]
     with open(os.path.join(up, "临时.md"), "w", encoding="utf-8") as f:
         f.write("temp")
     items = gui_server._inbox_list()
     say("[6 _inbox_list]", [(i["name"], i["source"]) for i in items])
-    assert all(i["source"] == "未处理" for i in items)
+    assert all(i["source"] == "0101未处理" for i in items)
     dm = gui_server._doubao_materials()
     say("[6 _doubao_materials]", [i["name"] for i in dm])
     assert any(i["name"] == "临时.md" for i in dm)
     # 删除（移入回收站）
-    mv, errs = gui_server._inbox_delete([{"name": "临时.md", "source": "未处理"}])
+    mv, errs = gui_server._inbox_delete([{"name": "临时.md", "source": "0101未处理"}])
     say("[6 _inbox_delete] moved=%s errors=%s" % (mv, errs))
     trash = os.path.join(VAULT, "_kb_回收站")
     assert os.path.isdir(trash) and len(os.listdir(trash)) == 1
@@ -158,7 +158,7 @@ try:
     say("[7 inbox after] items=%s sources=%s"
         % ([i["name"] for i in inv.get("items", [])],
            [i.get("source") for i in inv.get("items", [])]))
-    assert any(i["name"] == "HTTP测试.md" and i.get("source") == "未处理"
+    assert any(i["name"] == "HTTP测试.md" and i.get("source") == "0101未处理"
                for i in inv.get("items", []))
     # doubao materials
     dm2 = call("/api/doubao/materials")

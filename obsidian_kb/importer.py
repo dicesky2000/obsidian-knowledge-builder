@@ -6,7 +6,7 @@
   - .pdf            → 默认提取正文生成笔记（pdf_mode=extract），原件归档附件；
                       也可仅归档（pdf_mode=archive）
   - .docx           → 尝试提取正文生成笔记，失败则归档附件
-  - 图片等附件      → 直接归档「附件/」
+  - 图片等附件      → 直接归档「06附件/」
 
 流程：扫描 → 哈希去重（幂等）→ 归类 → 打标 → 生成 frontmatter → 写笔记
       → 源文件移入「已处理」或「附件」→ 登记注册表 → 输出日志。
@@ -181,7 +181,7 @@ def run_import(cfg: Dict[str, Any], vault_root: str, registry: Any,
     """执行批量导入。"""
     import_cfg = cfg["import"]
     structure = cfg["structure"]
-    b_dir = os.path.join(vault_root, structure.get("B_知识提炼", "知识提炼"))
+    b_dir = os.path.join(vault_root, structure.get("B_知识提炼", "03知识提炼"))
     done_dir = os.path.join(vault_root, structure.get("已处理", "已处理"))
     attach_dir = os.path.join(vault_root, structure.get("附件", "附件"))
     inbox_rel = import_cfg.get("inbox", "未处理")
@@ -335,9 +335,9 @@ def _handle_document(cfg: Dict[str, Any], fpath: str, fname: str, ext: str,
     note_path = os.path.join(b_dir, note_name)
 
     if dry_run:
-        logger.info("[DRY] 生成笔记 → %s/%s （标签: %s）", "知识提炼", note_name,
+        logger.info("[DRY] 生成笔记 → %s/%s （标签: %s）", "03知识提炼", note_name,
                     ", ".join("#" + t for t in tags) or "无")
-        report.add_detail("DRY", "%s → 知识提炼/%s 标签[%s]" % (
+        report.add_detail("DRY", "%s → 03知识提炼/%s 标签[%s]" % (
             fname, note_name, ",".join(tags)))
         return
 
@@ -360,7 +360,7 @@ def _handle_document(cfg: Dict[str, Any], fpath: str, fname: str, ext: str,
         "tags": tags,
         "status": status_new,
         "category": category,
-        # source 记录移动后的源素材路径（已处理/xxx），供链接引擎关联
+        # source 记录移动后的源素材路径（02已处理/xxx），供链接引擎关联
         "source": src_record,
     })
     note_text = fm_text + body.strip() + "\n"
@@ -369,7 +369,7 @@ def _handle_document(cfg: Dict[str, Any], fpath: str, fname: str, ext: str,
     report.new_notes += 1
     for t in tags:
         report.tags_generated[t] += 1
-    report.add_detail("OK", "%s → 知识提炼/%s（标签: %s）" % (
+    report.add_detail("OK", "%s → 03知识提炼/%s（标签: %s）" % (
         fname, note_name, ",".join("#" + t for t in tags) or "无"))
     logger.info("[导入] 生成笔记 %s （标签: %s）", note_path, ",".join(tags) or "无")
 

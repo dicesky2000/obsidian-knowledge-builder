@@ -12,10 +12,9 @@
   GET  /api/inbox           未处理文件列表
   POST /api/set_root        设置知识库位置
   POST /api/init            创建知识库
-  POST /api/sync            一键同步
   POST /api/upload          上传资料到未处理（base64 JSON）
   POST /api/inbox/delete    删除未处理文件（移入 _kb_回收站，可找回）
-  POST /api/schedule        自动同步开关
+  POST /api/prompts         保存豆包提示词格式（发送格式 / 生成格式）
   POST /api/open            打开知识库文件夹
   POST /api/open_path       打开指定路径（第一步「知识库放在哪里」用）
   POST /api/open_report     打开处理报告
@@ -52,6 +51,137 @@ PORT_TRIES = 10
 DIR_KEYS = {"笔记": "B_知识提炼", "报告": "logging.log_dir",
             "附件": "附件"}
 
+# 豆包提示词默认内容（未在 GUI 配置时使用；{素材内容} 为素材正文占位符）
+SEND_DEFAULT = """# 豆包提示词 — 知识提炼助手
+
+## 角色
+
+你是一位知识管家，负责将原始素材提炼为标准知识笔记。输出格式精确，不做多余解释。
+
+## 输出格式
+
+严格按以下 markdown 结构输出：
+
+```markdown
+---
+type: 笔记
+分类: 技术原理， 商业策略
+原始链接: （出处URL或说明）
+作者: （原作者，未知则留空）
+---
+
+# （4～20字的一句话总结）
+
+**关键词**：（8～18个关键词，逗号分隔）
+
+**摘要**：（浓缩核心内容，不超过120字）
+
+## 详细内容
+
+（用自己的话重新组织原始素材的核心知识点）
+
+## 逻辑树（可选）
+
+- 主论点
+  - 支撑论据
+```
+
+## 要求
+
+1. **分类**：从素材内容自行归纳，最多6个。例如：技术原理、商业策略、学习方法、系统设计、心理学等
+2. **关键词**：8～18个，逗号分隔
+3. **摘要**：不超过120字
+4. **详细内容**：**不少于600字**
+5. **逻辑树**：可选
+6. **语言**：全部中文
+7. **简洁**：只输出笔记本身，无解释无问候。**不要用 ``` 代码块包围**
+
+---
+
+**未收录**：{素材内容}
+"""
+
+NOTE_DEFAULT = """# B层知识提炼笔记 — 标准格式
+
+## 文件名规则
+
+```
+一句话总结_YYYYMMDDHHMMSS.md
+```
+
+- **一句话总结**：4~20 个中文字符，由豆包从原文提炼
+- **YYYYMMDDHHMMSS**：未收录文件的时间戳（源自 `未处理` 目录下的时间戳文件名）
+
+## 文档内容结构
+
+```markdown
+---
+type: 笔记
+分类: 技术原理， 商业策略
+原始链接: （URL或出处说明）
+---
+
+# 一句话总结
+
+**关键词**：关键词1， 关键词2， ...
+
+**摘要**：浓缩后的核心内容（不超过120字）
+
+## 详细内容
+
+（正文部分，保留未收录素材的核心知识点，用自己的话重新组织）
+
+## 逻辑树（可选）
+
+- 主论点一
+  - 支撑论据/例子
+    - 更细节的信息
+- 主论点二
+  - 支撑论据/例子
+```
+
+## 字段规范
+
+| 字段 | 约束 | 说明 |
+|------|------|------|
+| 分类 | 最多6个 | 由豆包自行归纳，如：技术原理、商业策略、学习方法、系统设计、心理学等 |
+| 关键词 | 8~18 个 | 中文与英文混合，保持原样 |
+| 原始链接 | 原文链接/视频链接/直接内容/个人思考 | 追溯原始出处 |
+| 摘要 | 浓缩内容，≤120 字 | 不是一句话，是提炼后的核心梗概 |
+| 详细内容 | 不少于600字 | 分自然段书写，不能原文摘抄 |
+| 逻辑树 | 可选 | 结构复杂的知识点用层级表达 |
+
+## 链接规范
+
+- 链接引擎在全部新笔记处理完毕后统一运行，每篇笔记只写一次
+- 匹配规则：关键词全转小写后精确匹配，共享 ≥3 个相同关键词即建链
+- 每篇笔记最多保留前 8 个强相关链接
+- 新增笔记还需链接到其自身的未收录文件（位于 `已处理`）
+- 阈值（当前为 3）将来可通过参数调整
+
+## 短内容处理规则
+
+- 原文有实际文字且字数 < 300 字 → 详细内容不要求 ≥600 字，豆包自由发挥即可
+- 纯链接（内容以 http 开头）→ 不受此规则影响，仍然要求 ≥600 字
+
+## 维护纪律
+
+- 用户只删不改
+- 过时或错误的内容 → 直接删除笔记文件
+- 删除后产生的死链接 → 不予修复
+
+## 整体处理逻辑
+
+1. **「存资料到知识库」脚本** → 未收录素材存入 `未处理/时间戳.md`
+2. **积累到若干数量后** → 用另一个 py 脚本批量处理未处理区的文件
+3. 批量脚本：将素材内容发给豆包（豆包置顶在前，不碰鼠标键盘）
+4. 豆包按标准格式输出文档
+5. 批量脚本保存到 `知识提炼/`
+6. 机械化链接引擎扫描全库，更新双向链接
+7. 更新倒排索引
+8. 未收录素材移至 `已处理`
+"""
+
 # 子进程统一用 python.exe（pythonw 下无法可靠读管道输出）
 PYTHON = sys.executable
 if os.name == "nt" and os.path.basename(PYTHON).lower().startswith("pythonw"):
@@ -63,10 +193,9 @@ if os.name == "nt" and os.path.basename(PYTHON).lower().startswith("pythonw"):
 _lock = threading.Lock()                 # 操作串行锁
 _state = {
     "root": "",                          # 知识库位置
-    "schedule_enabled": False,           # 自动同步开关
-    "schedule_minutes": 30,              # 自动同步间隔（分钟）
     "dirs": {"笔记": "", "报告": "", "附件": ""},  # 自定义存放位置
     "coord_file": DEFAULT_COORD_FILE,    # 当前豆包坐标文件名（可自定义，支持多套）
+    "prompts": {},                       # 豆包提示词配置 {"send_format","note_format"}
 }
 _log_seq = itertools.count(1)
 _log_lines = deque(maxlen=4000)          # 界面日志缓冲
@@ -108,6 +237,9 @@ def load_state():
         with open(STATE_FILE, "r", encoding="utf-8-sig") as f:
             data = json.load(f)
         if isinstance(data, dict):
+            # 清理旧版本残留字段（自动同步已随「一键同步」一起移除）
+            for k in ("schedule_enabled", "schedule_minutes"):
+                data.pop(k, None)
             _state.update(data)
     except Exception:
         pass
@@ -263,31 +395,38 @@ def _task(name, args):
     threading.Thread(target=_worker, daemon=True).start()
 
 
-def _sync_now():
-    """定时触发的同步（与手动同步共用同一串行锁）。"""
-    with _lock:
-        if _busy["flag"] or _exiting["flag"]:
-            return
-        _busy.update(flag=True, action="自动同步")
-    _log("———————— 开始：自动同步 ————————")
+def _write_prompt_files():
+    """把 GUI 配置的提示词写回知识库 D 层规则模板目录，与库内模板保持一致。"""
+    root = _state.get("root")
+    prompts = _state.get("prompts") or {}
+    send = (prompts.get("send_format") or "").strip()
+    note = (prompts.get("note_format") or "").strip()
+    if not root or (not send and not note):
+        return
     try:
-        _run_py(["sync", "--root", _state["root"], "--config", _cfg_path()])
-    finally:
-        _busy.update(flag=False, action="")
-        _log("———————— 完成：自动同步 ————————")
+        from obsidian_kb import config as _cfgmod
+        cfg = _cfgmod.load_config(_cfg_path(), cwd=BASE_DIR)
+        rules_dir = os.path.join(root, cfg["structure"].get("D_规则模板", "05规则模板"))
+        os.makedirs(rules_dir, exist_ok=True)
+        if send:
+            with open(os.path.join(rules_dir, "豆包知识提炼提示词.md"),
+                      "w", encoding="utf-8", newline="\n") as f:
+                f.write(send)
+        if note:
+            with open(os.path.join(rules_dir, "笔记格式规范.md"),
+                      "w", encoding="utf-8", newline="\n") as f:
+                f.write(note)
+        _log("已写回规则模板目录：%s" % rules_dir)
+    except Exception as e:
+        _log("写回规则模板失败：%s" % e)
 
 
-def _scheduler_loop():
-    """自动同步调度线程：每 10 秒检查一次是否需要执行。"""
-    while not _exiting["flag"]:
-        time.sleep(10)
-        if _state["schedule_enabled"] and _state["root"]:
-            interval = max(1, int(_state.get("schedule_minutes") or 30))
-            now = time.time()
-            last = getattr(_scheduler_loop, "_last", 0)
-            if now - last >= interval * 60:
-                _scheduler_loop._last = now
-                threading.Thread(target=_sync_now, daemon=True).start()
+def _prompts_config():
+    """返回当前提示词配置；未配置或内容全空时返回内置默认，供前端回填。"""
+    p = _state.get("prompts") or {}
+    if p.get("send_format") or p.get("note_format"):
+        return p
+    return {"send_format": SEND_DEFAULT, "note_format": NOTE_DEFAULT}
 
 
 def _latest_report_summary():
@@ -320,21 +459,21 @@ def _import_source_dirs():
     try:
         from obsidian_kb import config as _cfgmod
         cfg = _cfgmod.load_config(_cfg_path(), cwd=BASE_DIR)
-        inbox_rel = cfg["import"].get("inbox", "未处理")
+        inbox_rel = cfg["import"].get("inbox", "01未处理")
     except Exception:
-        inbox_rel = "未处理"
-    return [("未处理", os.path.abspath(os.path.join(root, inbox_rel)))]
+        inbox_rel = "01未处理"
+    return [("01未处理", os.path.abspath(os.path.join(root, inbox_rel)))]
 
 
 def _inbox_path():
     root = _state.get("root")
     if not root:
         return ""
-    inbox_rel = "未处理"
+    inbox_rel = "01未处理"
     try:
         from obsidian_kb import config as _cfgmod
         cfg = _cfgmod.load_config(_cfg_path(), cwd=BASE_DIR)
-        inbox_rel = cfg["import"].get("inbox", "未处理")
+        inbox_rel = cfg["import"].get("inbox", "01未处理")
     except Exception:
         pass
     inbox = os.path.join(root, inbox_rel)
@@ -369,11 +508,11 @@ def _inbox_list():
 
 
 def _inbox_breakdown():
-    """按来源统计待同步文件数，如 {"未处理": 5}。"""
+    """按来源统计待同步文件数，如 {"01未处理": 5}。"""
     bd: Dict[str, int] = {}
     try:
         for it in _inbox_list():
-            bd[it.get("source", "未处理")] = bd.get(it.get("source", "未处理"), 0) + 1
+            bd[it.get("source", "01未处理")] = bd.get(it.get("source", "01未处理"), 0) + 1
     except Exception:
         pass
     return bd
@@ -428,10 +567,10 @@ def _inbox_delete(items):
     moved, errors = [], []
     for it in (items or []):
         if isinstance(it, dict):
-            label = it.get("source") or "未处理"
+            label = it.get("source") or "01未处理"
             name = str(it.get("name") or "")
         else:
-            label, name = "未处理", str(it)
+            label, name = "01未处理", str(it)
         base = os.path.basename(name)            # 防路径穿越：只取文件名
         if not base or base.startswith("."):
             errors.append("%s（非法文件名）" % base)
@@ -493,7 +632,7 @@ class Handler(BaseHTTPRequestHandler):
         elif path == "/api/coord/files":
             self._send_json({"ok": True, "files": _list_coord_files(),
                              "current": _state.get("coord_file") or DEFAULT_COORD_FILE})
-        elif path in ("/api/init", "/api/sync", "/api/open",
+        elif path in ("/api/init", "/api/open",
                       "/api/open_path", "/api/open_report", "/api/exit"):
             # 兼容旧页面用 GET 触发这些操作
             self._action(path)
@@ -510,8 +649,6 @@ class Handler(BaseHTTPRequestHandler):
             "busy": _busy["flag"],
             "busy_action": _busy["action"],
             "vault_exists": bool(root) and os.path.isdir(root),
-            "schedule_enabled": _state["schedule_enabled"],
-            "schedule_minutes": _state.get("schedule_minutes", 30),
             "inbox_count": len(_inbox_list()) if root else 0,
             "inbox_breakdown": _inbox_breakdown() if root else {},
             "dirs": _state.get("dirs") or {"笔记": "", "报告": "", "附件": ""},
@@ -520,6 +657,7 @@ class Handler(BaseHTTPRequestHandler):
             "coords": _coords,
             "coord_waiting": _coord_waiting.get("which", ""),
             "doubao_running": _doubao_running["flag"],
+            "prompts": _prompts_config(),
             "summary": _latest_report_summary(),
         }
 
@@ -544,7 +682,7 @@ class Handler(BaseHTTPRequestHandler):
             body = {}
 
         path = self.path
-        if path in ("/api/init", "/api/sync", "/api/open",
+        if path in ("/api/init", "/api/open",
                     "/api/open_path", "/api/open_report", "/api/exit"):
             self._action(path, body)
         elif path == "/api/dirs":
@@ -555,6 +693,15 @@ class Handler(BaseHTTPRequestHandler):
             save_state()
             _log("自定义存放位置已保存：%s" % json.dumps(
                 _state["dirs"], ensure_ascii=False))
+            self._send_json({"ok": True, "status": self._status()})
+
+        elif path == "/api/prompts":
+            send = str(body.get("send_format") or "").strip()
+            note = str(body.get("note_format") or "").strip()
+            _state["prompts"] = {"send_format": send, "note_format": note}
+            save_state()
+            _write_prompt_files()
+            _log("提示词格式已保存（发送格式 %d 字 / 生成格式 %d 字）" % (len(send), len(note)))
             self._send_json({"ok": True, "status": self._status()})
 
         elif path == "/api/coord/record":
@@ -693,39 +840,19 @@ class Handler(BaseHTTPRequestHandler):
             self._send_json({"ok": True, "moved": moved, "errors": errors,
                              "items": _inbox_list()})
 
-        elif path == "/api/schedule":
-            _state["schedule_enabled"] = bool(body.get("enabled"))
-            try:
-                _state["schedule_minutes"] = max(
-                    1, min(int(body.get("minutes", 30)), 1440))
-            except (TypeError, ValueError):
-                _state["schedule_minutes"] = 30
-            save_state()
-            _log("自动同步已%s（间隔 %d 分钟）" % (
-                "开启" if _state["schedule_enabled"] else "关闭",
-                _state["schedule_minutes"]))
-            self._send_json({"ok": True, "status": self._status()})
-
         else:
             startup_log("404 POST " + self.path)
             self._send_json({"ok": False, "error": "未知接口: POST " + self.path},
                             code=404)
 
     def _action(self, path, body=None):
-        """无参数操作（init / sync / open / open_path / open_report / exit），GET 与 POST 通用。"""
+        """无参数操作（init / open / open_path / open_report / exit），GET 与 POST 通用。"""
         if path == "/api/init":
             if not _state["root"]:
                 self._send_json({"ok": False, "error": "请先填写知识库位置"})
                 return
             _task("创建知识库",
                   ["init", "--root", _state["root"], "--config", _cfg_path()])
-            self._send_json({"ok": True, "status": self._status()})
-        elif path == "/api/sync":
-            if not _state["root"]:
-                self._send_json({"ok": False, "error": "请先填写知识库位置"})
-                return
-            _task("一键同步",
-                  ["sync", "--root", _state["root"], "--config", _cfg_path()])
             self._send_json({"ok": True, "status": self._status()})
         elif path == "/api/open":
             root = _state["root"]
@@ -761,7 +888,7 @@ class Handler(BaseHTTPRequestHandler):
                     os.startfile(p)  # noqa
                 self._send_json({"ok": True})
             else:
-                self._send_json({"ok": False, "error": "还没有处理报告，请先执行一键同步"})
+                self._send_json({"ok": False, "error": "还没有处理报告，请先执行豆包自动整理或命令行 sync"})
         elif path == "/api/exit":
             _log("正在退出知识库助手……")
             _exiting["flag"] = True
@@ -818,10 +945,13 @@ class Handler(BaseHTTPRequestHandler):
                 logger, report = logger_mod.setup_logging(log_dir, root)
                 logger.addHandler(_GuiLogHandler())
                 reg = registry.Registry(root)
+                prompts = _state.get("prompts") or {}
                 doubao_automation.refine_loop(
                     cfg, root, _coords, reg, logger, report,
                     wait_seconds=wait, max_items=max_items,
-                    stop_event=_doubao_stop)
+                    stop_event=_doubao_stop,
+                    send_format=prompts.get("send_format") or None,
+                    note_format=prompts.get("note_format") or None)
                 # 全部完成后运行链接引擎 + MOC（对齐模板流程）
                 if not _doubao_stop.is_set():
                     linker.run_linking(cfg, root, reg, logger, report)
@@ -879,7 +1009,7 @@ class Handler(BaseHTTPRequestHandler):
         self._send_json({
             "ok": True, "saved": saved, "errors": errors,
             "items": _inbox_list(),
-            "tip": "文件已放入未处理，可在下方列表检查/删减，然后点「一键同步」",
+            "tip": "文件已放入01未处理，可在下方列表检查/删减，然后点「豆包自动整理」",
         })
 
     # ---------- 响应工具 ----------
@@ -944,7 +1074,6 @@ def main():
     except Exception:
         pass
 
-    threading.Thread(target=_scheduler_loop, daemon=True).start()
     startup_log("READY " + url)
     _log("知识库助手已启动：%s" % url)
     print("知识库助手已启动：%s（点界面「退出」或关闭此进程停止）" % url, flush=True)

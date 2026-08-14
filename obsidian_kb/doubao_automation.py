@@ -453,7 +453,7 @@ type: 笔记
 
 
 def _iter_material_sources(cfg: Dict[str, Any], vault_root: str) -> List[str]:
-    """返回豆包提炼要扫描的素材目录（统一入口「未处理」，与一键同步同源）。
+    """返回豆包提炼要扫描的素材目录（统一入口「未处理」，与 CLI sync 同源）。
 
     合并前的「收件箱 / 未收录 / 原始素材/未处理」现已统一为「未处理」，
     故豆包只扫描 import.inbox（默认 未处理）一处，避免放错目录识别不到。
@@ -478,25 +478,40 @@ def _list_materials(sources: List[str]) -> List[Tuple[str, str]]:
     return out
 
 
-def build_prompt(material_text: str, vault_root: str, cfg: Dict[str, Any]) -> str:
-    """从 D 层读取提示词模板并拼接素材；模板缺失时用内置默认。"""
-    structure = cfg.get("structure", {})
-    tpl_path = os.path.join(vault_root, structure.get("D_规则模板", "规则模板"),
-                            "豆包知识提炼提示词.md")
-    template = None
-    if os.path.isfile(tpl_path):
-        try:
-            with open(tpl_path, "r", encoding="utf-8-sig") as f:
-                template = f.read()
-        except Exception:
-            template = None
-    if template is None:
-        template = DEFAULT_PROMPT
+def build_prompt(material_text: str, vault_root: str, cfg: Dict[str, Any],
+                 send_format: Optional[str] = None,
+                 note_format: Optional[str] = None) -> str:
+    """构造发送给豆包的完整提示词。
+
+    模板来源优先级：GUI 配置 send_format → D 层「豆包知识提炼提示词.md」→ 内置默认。
+    素材正文插到占位符 {素材内容} 处；无占位符则追加到末尾。
+    note_format 作为「生成格式」要求随提示词一并发给豆包。
+    """
+    material = material_text.strip()
+    if send_format and str(send_format).strip():
+        template = str(send_format)
     else:
-        # 去掉模板中"**原始素材**：（将素材内容粘贴在这里）"占位行
-        template = re.sub(r"^.*原始素材.*[:：].*$", "", template,
-                          flags=re.M).rstrip() + "\n\n原始素材："
-    return template + "\n\n" + material_text.strip()
+        structure = cfg.get("structure", {})
+        tpl_path = os.path.join(vault_root, structure.get("D_规则模板", "规则模板"),
+                                "豆包知识提炼提示词.md")
+        template = None
+        if os.path.isfile(tpl_path):
+            try:
+                with open(tpl_path, "r", encoding="utf-8-sig") as f:
+                    template = f.read()
+            except Exception:
+                template = None
+        if template is None:
+            template = DEFAULT_PROMPT
+    # 素材占位：先兜底删除旧模板「原始素材：」占位行，再统一替换 {素材内容}
+    template = re.sub(r"^.*原始素材.*[:：].*$", "", template, flags=re.M)
+    if "{素材内容}" in template:
+        prompt = template.replace("{素材内容}", material)
+    else:
+        prompt = template.rstrip() + "\n\n" + material
+    if note_format and str(note_format).strip():
+        prompt = prompt.rstrip() + "\n\n" + str(note_format).strip()
+    return prompt
 
 
 def parse_refined_note(reply: str) -> Tuple[Optional[str], str]:
@@ -536,7 +551,9 @@ def refine_loop(cfg: Dict[str, Any], vault_root: str, coords: Dict[str, Dict[str
                 registry: Any, logger: Any, report: Any,
                 wait_seconds: int = 30, max_items: Optional[int] = None,
                 stop_event: Optional[Any] = None,
-                on_item: Optional[Any] = None) -> None:
+                on_item: Optional[Any] = None,
+                send_format: Optional[str] = None,
+                note_format: Optional[str] = None) -> None:
     """批量提炼主循环。stop_event 置位或用户按 Esc 即中断。"""
     if not coords or not all(k in coords for k in COORD_NAMES):
         raise ValueError("坐标不完整，请先依次记录输入框/下翻箭头/复制按钮坐标")
@@ -544,12 +561,12 @@ def refine_loop(cfg: Dict[str, Any], vault_root: str, coords: Dict[str, Dict[str
         raise RuntimeError("豆包键鼠自动化仅支持 Windows")
 
     structure = cfg.get("structure", {})
-    b_dir = os.path.join(vault_root, structure.get("B_知识提炼", "知识提炼"))
+    b_dir = os.path.join(vault_root, structure.get("B_知识提炼", "03知识提炼"))
     done_dir = os.path.join(vault_root, structure.get("已处理", "已处理"))
     os.makedirs(b_dir, exist_ok=True)
     os.makedirs(done_dir, exist_ok=True)
 
-    # 素材来源：未处理（统一入口，与一键同步同源）
+    # 素材来源：未处理（统一入口，与 CLI sync 同源）
     sources = _iter_material_sources(cfg, vault_root)
     for d in sources:
         os.makedirs(d, exist_ok=True)
@@ -588,7 +605,8 @@ def refine_loop(cfg: Dict[str, Any], vault_root: str, coords: Dict[str, Dict[str
             continue
 
         logger.info("[豆包] (%d/%d) 正在提炼：%s", idx, len(files), fname)
-        prompt = build_prompt(material, vault_root, cfg)
+        prompt = build_prompt(material, vault_root, cfg,
+                              send_format=send_format, note_format=note_format)
         ok = False
         for attempt in (1, 2):  # 失败自动重试一次
             try:
@@ -653,7 +671,7 @@ def refine_loop(cfg: Dict[str, Any], vault_root: str, coords: Dict[str, Dict[str
                           os.path.relpath(dst, vault_root).replace("\\", "/"))
             report.imported += 1
             report.new_notes += 1
-            report.add_detail("OK", "%s → 知识提炼/%s" % (fname, note_name))
+            report.add_detail("OK", "%s → 03知识提炼/%s" % (fname, note_name))
             logger.info("[豆包] 已保存笔记：%s", note_name)
         except Exception as e:
             report.failed += 1

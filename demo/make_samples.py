@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""生成演示用样例素材（放入 <库>/未处理/），用于端到端验证。
+"""生成演示用样例素材（放入 <库>/01未处理/），用于端到端验证。
 
 用法：
   python demo/make_samples.py --vault D:\\test_vault
@@ -9,7 +9,7 @@
   - 卡片盒笔记法实践心得.md  （Markdown 导入）
   - 豆包辅助知识管理笔记.txt （TXT 自动转 Markdown）
   - 轨道车辆标准体系与认证.md （Markdown 导入）
-  - 灵感速写.png             （图片 → 附件归档）
+  - 灵感速写.png             （图片 → 06附件归档）
 """
 import argparse
 import os
@@ -92,7 +92,7 @@ def make_png(path: str) -> None:
 def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--vault", required=True, help="知识库根目录")
-    ap.add_argument("--inbox", default="未处理", help="未处理相对路径")
+    ap.add_argument("--inbox", default="01未处理", help="01未处理相对路径")
     args = ap.parse_args()
 
     inbox = os.path.join(args.vault, args.inbox)
