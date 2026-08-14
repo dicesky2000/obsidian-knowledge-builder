@@ -2,7 +2,7 @@
 """日志与处理报告。
 
 - 控制台 INFO 级日志 + 文件 DEBUG 级日志（处理日志/kb_YYYYMMDD.log）；
-- Report 收集运行统计（扫描数/导入数/新增笔记数/跳过数/失败数/标签/关联/MOC），
+- Report 收集运行统计（扫描数/导入数/新增笔记数/跳过数/失败数/标签/关联/索引），
   运行结束生成 Markdown 版《处理报告》，方便核对。
 """
 import datetime
@@ -25,7 +25,7 @@ class Report(object):
         self.skipped_dups = 0       # 其中：重复文件数
         self.failed = 0             # 失败数
         self.attachments = 0        # 归档到附件的文件数
-        self.mocs = 0               # 生成/更新的 MOC 索引页数
+        self.indexes = 0            # 生成的索引笔记数
         self.tags_generated: Counter = Counter()   # tag -> 次数
         self.links_added = 0        # 新增双链数
         self.relations: List[Tuple[str, str]] = []  # (来源笔记, 目标笔记)
@@ -57,7 +57,7 @@ class Report(object):
             ("跳过文件数（其中重复 %d）" % self.skipped_dups, self.skipped),
             ("失败文件数", self.failed),
             ("新增双链数", self.links_added),
-            ("MOC 索引页", self.mocs),
+            ("生成索引页数", self.indexes),
         ]
         for name, val in stats:
             lines.append("| %s | %d |" % (name, val))

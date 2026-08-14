@@ -172,7 +172,7 @@ _state = {
     "root": "",                          # 知识库位置
     "coord_file": DEFAULT_COORD_FILE,    # 当前豆包坐标文件名（可自定义，支持多套）
     "prompts": {},                       # 豆包提示词配置 {"send_format"}
-    "debug": {"enabled": False, "snapshot": {"inbox": [], "done": [], "notes": [], "moc": [], "logs": []}},
+    "debug": {"enabled": False, "snapshot": {"inbox": [], "done": [], "notes": [], "logs": []}},
 }
 _log_seq = itertools.count(1)
 _log_lines = deque(maxlen=4000)          # 界面日志缓冲
@@ -564,18 +564,17 @@ def _debug_dirs():
     inbox = os.path.join(root, cfg.get("import", {}).get("inbox", "01未处理"))
     done = os.path.join(root, structure.get("已处理", "02已处理"))
     notes = os.path.join(root, structure.get("B_知识提炼", "03知识提炼"))
-    moc = os.path.join(root, structure.get("C_MOC", "04知识聚合/MOC"))
     log_dir = cfg.get("logging", {}).get("log_dir", "处理日志")
     logs = os.path.join(root, log_dir)
-    return inbox, done, notes, moc, logs
+    return inbox, done, notes, logs
 
 
 def _debug_snapshot():
     """记录 5 个目录当前 basename 集合（目录不存在记空列表）。"""
-    inbox, done, notes, moc, logs = _debug_dirs()
+    inbox, done, notes, logs = _debug_dirs()
     snap = {}
     for key, d in (("inbox", inbox), ("done", done), ("notes", notes),
-                   ("moc", moc), ("logs", logs)):
+                   ("logs", logs)):
         snap[key] = sorted(os.listdir(d)) if d and os.path.isdir(d) else []
     return snap
 
@@ -592,20 +591,20 @@ def _strip_hmss(fn, candidates):
 def _debug_reset():
     """按快照撤销调试期间的全部操作（在后台线程中执行）。
 
-    ① 删除 03知识提炼 / 04知识聚合/MOC / 处理日志 中调试期间新生成的文件；
+    ① 删除 03知识提炼 / 处理日志 中调试期间新生成的文件；
     ② 把调试期间从 01未处理 移到 02已处理 的素材移回（恢复原名，重名加唯一后缀不覆盖）；
     ③ 清理 .kb_registry.json 中已删除笔记的注册项。
     复位后保持调试模式开启、快照不变，可反复运行再复位。
     """
-    inbox, done, notes, moc, logs = _debug_dirs()
+    inbox, done, notes, logs = _debug_dirs()
     snap = (_state.get("debug") or {}).get("snapshot") or {}
     root = _state.get("root")
     deleted_notes = []
-    removed = {"notes": 0, "moc": 0, "logs": 0}
+    removed = {"notes": 0, "logs": 0}
     errors = []
 
-    # ① 删除调试期间新生成的文件（笔记 / MOC / 日志报告）
-    for d, key in ((notes, "notes"), (moc, "moc"), (logs, "logs")):
+    # ① 删除调试期间新生成的文件（笔记 / 日志报告）
+    for d, key in ((notes, "notes"), (logs, "logs")):
         if not d or not os.path.isdir(d):
             continue
         base = set(snap.get(key) or [])
@@ -657,8 +656,8 @@ def _debug_reset():
     except Exception as e:
         errors.append("registry 清理：%s" % e)
 
-    _log("调试复位完成：删除笔记 %d、MOC %d、日志/报告 %d，移回素材 %d%s" % (
-        removed["notes"], removed["moc"], removed["logs"], moved,
+    _log("调试复位完成：删除笔记 %d、日志/报告 %d，移回素材 %d%s" % (
+        removed["notes"], removed["logs"], moved,
         "；告警：%s" % "；".join(errors[:5]) if errors else ""))
 
 
@@ -777,7 +776,7 @@ class Handler(BaseHTTPRequestHandler):
             else:
                 dbg["enabled"] = False
                 dbg["snapshot"] = {"inbox": [], "done": [], "notes": [],
-                                   "moc": [], "logs": []}
+                                   "logs": []}
                 _log("调试模式已关闭（快照已清空，已生成文件保留）")
             save_state()
             self._send_json({"ok": True, "status": self._status()})
@@ -1053,11 +1052,10 @@ class Handler(BaseHTTPRequestHandler):
                     wait_seconds=wait, max_items=max_items,
                     stop_event=_doubao_stop,
                     send_format=prompts.get("send_format") or None)
-                # 全部完成后运行链接引擎 + MOC/索引（对齐模板流程；调试模式下跳过，便于复位撤销）
+                # 全部完成后运行链接引擎 + 索引笔记（对齐模板流程；调试模式下跳过，便于复位撤销）
                 if not (_state.get("debug") or {}).get("enabled") \
                         and not _doubao_stop.is_set():
                     linker.run_linking(cfg, root, reg, logger, report)
-                    linker.generate_mocs(cfg, root, logger, report)
                     linker.generate_indexes(cfg, root, logger, report)
                     reg.save()
                     started = datetime.datetime.now()

@@ -7,7 +7,6 @@
   3. 每篇笔记最多保留前 8 条强相关链接（max_links_per_note）；
   4. 新增笔记自动链接其自身原始素材文件（已处理/xxx.md）；
   5. 链接引擎在全部笔记处理完毕后统一运行，每篇只追加缺失链接（幂等）；
-  6. 为每个标签 / 分类生成 MOC 索引页。
 
 约束：默认只处理 B 层（知识提炼），C 层（知识聚合）只读不写，程序不碰 C 层。
 """
@@ -84,12 +83,10 @@ def _safe_key(key) -> str:
 
 def collect_notes(cfg: Dict[str, Any], vault_root: str,
                   include_c: bool = False) -> List[NoteInfo]:
-    """收集参与链接引擎的笔记（B 层 + 可选 C 层），跳过 MOC 与索引笔记目录。"""
+    """收集参与链接引擎的笔记（B 层 + 可选 C 层），跳过索引笔记目录。"""
     structure = cfg["structure"]
     b_dir = os.path.join(vault_root, structure.get("B_知识提炼", "知识提炼"))
     c_dir = os.path.join(vault_root, structure.get("C_知识聚合", "知识聚合"))
-    moc_rel = structure.get("C_MOC", "知识聚合/MOC")
-    moc_abs = os.path.join(vault_root, moc_rel)
     index_rel = structure.get("B_索引", "03知识提炼/索引笔记")
     index_abs = os.path.join(vault_root, index_rel)
 
@@ -109,8 +106,7 @@ def collect_notes(cfg: Dict[str, Any], vault_root: str,
                     continue
                 path = os.path.join(dirpath, fn)
                 absp = os.path.abspath(path)
-                if absp.startswith(os.path.abspath(moc_abs)) or \
-                        absp.startswith(os.path.abspath(index_abs)):
+                if absp.startswith(os.path.abspath(index_abs)):
                     continue
                 name = os.path.splitext(fn)[0]
                 if name in seen:
@@ -291,79 +287,6 @@ def run_linking(cfg: Dict[str, Any], vault_root: str, registry: Any,
     logger.info("[链接] 完成：新增双链 %d 条，更新笔记 %d 篇",
                 report.links_added, report.updated_notes)
 
-
-def generate_mocs(cfg: Dict[str, Any], vault_root: str,
-                  logger: logging.Logger, report: Any) -> None:
-    """为每个标签 / 分类生成（或刷新）MOC 索引页。"""
-    link_cfg = cfg.get("linking", {})
-    if not link_cfg.get("gen_moc", True):
-        return
-    structure = cfg["structure"]
-    moc_rel = structure.get("C_MOC", "知识聚合/MOC")
-    moc_dir = os.path.join(vault_root, moc_rel)
-    os.makedirs(moc_dir, exist_ok=True)
-    date_format = cfg["frontmatter"].get("date_format", "%Y-%m-%d %H:%M")
-
-    notes = collect_notes(cfg, vault_root, include_c=False)
-    tag_map: Dict[str, List[str]] = defaultdict(list)
-    cat_map: Dict[str, List[str]] = defaultdict(list)
-    for n in notes:
-        for kw in n.keywords:
-            tag_map[kw].append(n.name)
-        fm, _, _ = frontmatter.parse_frontmatter(n.content)
-        cat = (fm or {}).get("分类") or (fm or {}).get("category")
-        if cat:
-            cat_map[str(cat)].append(n.name)
-
-    mocs: List[Tuple[str, str, List[str]]] = []
-    for tag in sorted(tag_map):
-        mocs.append(("标签", tag, sorted(set(tag_map[tag]))))
-    for cat in sorted(cat_map):
-        mocs.append(("分类", cat, sorted(set(cat_map[cat]))))
-
-    for kind, key, names in mocs:
-        safe = re.sub(r"[\\/:*?\"<>|]", "_", key)
-        title = "%s · %s" % (kind, key)
-        fname = "%s_%s.md" % (kind, safe)
-        path = os.path.join(moc_dir, fname)
-        _write_moc(path, title, [kind], names, date_format)
-        report.mocs += 1
-        logger.info("[MOC] %s 索引页：%s （%d 篇笔记）", kind, fname, len(names))
-
-    logger.info("[MOC] 完成：生成/刷新 %d 个索引页", report.mocs)
-
-
-def _write_moc(path: str, title: str, tags: List[str], note_names: List[str],
-               date_format: str) -> None:
-    """写 MOC 文件：保留已有 created，刷新 updated，列表确定性重排。"""
-    import datetime
-
-    body = ["# %s" % title, "",
-            "> 本页由链接引擎自动生成（MOC / Map of Content），作为知识图谱的枢纽。",
-            "", "## 收录笔记", ""]
-    for nm in note_names:
-        body.append("- [[%s]]" % nm)
-    body.append("")
-
-    fm: Dict[str, Any] = {"title": title, "tags": tags, "category": "MOC 索引"}
-    existing = {}
-    if os.path.exists(path):
-        try:
-            existing, _, _ = frontmatter.parse_frontmatter(frontmatter.read_text_auto(path))
-        except Exception:
-            existing = {}
-    now = datetime.datetime.now().strftime(date_format)
-    if existing.get("created"):
-        fm["created"] = existing["created"]
-    else:
-        fm["created"] = now
-    fm["updated"] = now
-
-    text = frontmatter.build_frontmatter(fm) + "\n".join(body)
-    with open(path, "w", encoding="utf-8", newline="\n") as f:
-        f.write(text)
-
-
 def generate_indexes(cfg: Dict[str, Any], vault_root: str,
                      logger: logging.Logger, report: Any) -> None:
     """为每个关键词 / 分类值生成（或刷新）B 层索引笔记。
@@ -412,5 +335,5 @@ def generate_indexes(cfg: Dict[str, Any], vault_root: str,
         made += 1
         logger.info("[索引] %s（%d 篇笔记）", fname, len(names))
 
-    report.mocs += made
+    report.indexes += made
     logger.info("[索引] 完成：生成/刷新 %d 个索引笔记", made)

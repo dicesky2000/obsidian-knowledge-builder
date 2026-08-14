@@ -423,7 +423,7 @@
     <h2><span class="cat-no">06</span>高级设置</h2>
     <div style="margin-top:4px">
       <div style="margin-bottom:4px"><label style="font-size:14px;font-weight:600">调试模式</label></div>
-      <div class="hint" style="margin-bottom:8px">开启后，豆包整理将<b>跳过链接引擎 / MOC / 处理报告</b>；点「复位」可撤销调试期间的全部操作：删除新建的笔记/MOC/日志，并把已处理素材移回 <b>01未处理</b>。调试期请用网页「豆包自动整理」，勿用命令行 sync（会污染既有笔记的相关笔记区块）。</div>
+      <div class="hint" style="margin-bottom:8px">开启后，豆包整理将<b>跳过链接引擎 / 处理报告</b>；点「复位」可撤销调试期间的全部操作：删除新建的笔记/日志，并把已处理素材移回 <b>01未处理</b>。调试期请用网页「豆包自动整理」，勿用命令行 sync（会污染既有笔记的相关笔记区块）。</div>
       <div class="row">
         <label style="font-size:14px;margin-right:16px;display:flex;align-items:center;gap:6px"><input type="checkbox" id="debugEnabled">开启调试模式</label>
         <button class="btn danger" id="btnDebugReset" style="display:none">复位</button>
@@ -526,7 +526,7 @@ function renderStatus(s) {
   }
   setButtons(s.busy || !connected);
   if (s.summary) {
-    const map = { "导入文件数": 0, "新增笔记数": 1, "新增双链数": 2, "MOC 索引页": 3 };
+    const map = { "导入文件数": 0, "新增笔记数": 1, "新增双链数": 2, "生成索引页数": 3 };
     const labels = ["导入文件", "新增笔记", "新增双链", "索引页"];
     const vals = ["—", "—", "—", "—"];
     for (const k in s.summary) if (k in map) vals[map[k]] = s.summary[k];
@@ -789,7 +789,7 @@ $("debugEnabled").onchange = async () => {
   else { toast(r.error || "操作失败", false); $("debugEnabled").checked = !on; }
 };
 $("btnDebugReset").onclick = async () => {
-  if (!confirm("确定复位？\n将删除调试期间新建的笔记/MOC/日志，并把已处理素材移回 01未处理。")) return;
+  if (!confirm("确定复位？\n将删除调试期间新建的笔记/日志，并把已处理素材移回 01未处理。")) return;
   const r = await api("/api/debug/reset", {});
   if (r && r.ok) toast("已开始复位，请查看下方运行日志");
   else if (!r) toast("无法连接服务，请先双击启动 bat", false);

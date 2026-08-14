@@ -76,7 +76,7 @@ def main() -> int:
     linker.run_linking(cfg, vault_root, None, logger, report)
     linker.generate_indexes(cfg, vault_root, logger, report)
     logger.info("回填完成：新增双链 %d 条，更新笔记 %d 篇，索引页 %d 个",
-                report.links_added, report.updated_notes, report.mocs)
+                report.links_added, report.updated_notes, report.indexes)
     return 0
 
 

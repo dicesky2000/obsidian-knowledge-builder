@@ -46,7 +46,7 @@ try:
     logger, _ = logger_mod.setup_logging(cfg["logging"]["log_dir"], VAULT)
     st = vault.init_vault(cfg, VAULT, logger=logger)
     say("[2 init] stats:", st)
-    for d in ["0101未处理", "02已处理", "03知识提炼", "04知识聚合", "04知识聚合/MOC",
+    for d in ["0101未处理", "02已处理", "03知识提炼", "04知识聚合",
               "05规则模板", "06附件", "07日记"]:
         assert os.path.isdir(os.path.join(VAULT, d)), d
     assert not os.path.isdir(os.path.join(VAULT, "原始素材"))
@@ -69,12 +69,11 @@ try:
     assert len(mats) == 2
     say("[4] OK")
 
-    # 5) 一键同步（导入 + 打标 + 双链 + MOC + 报告）
+    # 5) 一键同步（导入 + 打标 + 双链 + 索引 + 报告）
     reg = registry.Registry(VAULT)
     logger, report = logger_mod.setup_logging(cfg["logging"]["log_dir"], VAULT)
     importer.run_import(cfg, VAULT, reg, logger, report)
     linker.run_linking(cfg, VAULT, reg, logger, report)
-    linker.generate_mocs(cfg, VAULT, logger, report)
     reg.save()
     say("[5 sync] scanned=%d imported=%d new_notes=%d attachments=%d failed=%d"
         % (report.scanned, report.imported, report.new_notes,

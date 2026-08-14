@@ -84,10 +84,10 @@
     <tr><td>① 自动创建标准目录结构</td><td>按配置 <code>[structure]</code> 顺序建目录，内置兵哥四层架构预设 + Obsidian 基础配置 + D 层提示词模板 + 示范笔记</td><td><code>vault.py</code></td></tr>
     <tr><td>② 批量导入 + 自动归类</td><td>扫描导入源；.md/.txt 转笔记、.pdf 提取正文生成笔记、图片/文档按类型归档06附件，源文件移入「02已处理」</td><td><code>importer.py</code></td></tr>
     <tr><td>③ 规范化 YAML frontmatter</td><td>自动生成 title/tags/created/updated/source/category/status；保留用户字段、只刷新 updated、绝不覆盖手工归类</td><td><code>frontmatter.py</code></td></tr>
-    <tr><td>④ 自动打标 + 双链 + 知识图谱</td><td>「关键词→标签」规则表 + 正文 #标签 提取；标题+标签匹配引擎为笔记互建 <code>[[双链]]</code>；为标签/分类生成 MOC 索引页</td><td><code>tagger.py</code> / <code>linker.py</code></td></tr>
+    <tr><td>④ 自动打标 + 双链 + 知识图谱</td><td>「关键词→标签」规则表 + 正文 #标签 提取；标题+关键词匹配引擎为笔记互建 <code>[[双链]]</code>；为标签/分类生成索引笔记（双向链接回链）</td><td><code>tagger.py</code> / <code>linker.py</code></td></tr>
     <tr><td>⑤ 配置灵活定制</td><td>YAML/JSON 双格式配置，深合并默认值；目录结构、标签规则、命名规范、链接策略、调度参数全部可调</td><td><code>config.py</code></td></tr>
     <tr><td>⑥ CLI + 一次性/定时</td><td>argparse 子命令：init/import/link/sync/watch/schedule/report；watch 内置循环 + Windows 计划任务注册</td><td><code>cli.py</code> / <code>scheduler.py</code></td></tr>
-    <tr><td>⑦ 处理日志与报告</td><td>控制台 INFO + 文件 DEBUG 双日志；每次运行生成 Markdown《处理报告》（导入数/新增笔记/标签/关联/MOC/失败）</td><td><code>logger.py</code></td></tr>
+    <tr><td>⑦ 处理日志与报告</td><td>控制台 INFO + 文件 DEBUG 双日志；每次运行生成 Markdown《处理报告》（导入数/新增笔记/标签/关联/索引/失败）</td><td><code>logger.py</code></td></tr>
     <tr><td>⑧ 错误处理 + 幂等</td><td>内容 SHA-256 注册表去重；文件名冲突加序号；编码自动探测；单文件失败不阻断；--dry-run 演练模式</td><td><code>registry.py</code> / <code>importer.py</code></td></tr>
   </table>
 </div>
@@ -123,7 +123,7 @@
   <pre>收件箱/                 ← 导入源：把要整理的资料丢进来
 原始素材/01未处理 → 02已处理  ← A 层：源文件归位
 03知识提炼/               ← B 层：xxx.md 笔记（frontmatter + 正文 + ## 相关笔记）
-04知识聚合/MOC/           ← 标签/分类索引页（知识图谱枢纽）
+04知识聚合/               ← C 层：用户创作空间（程序不碰）
 05规则模板/               ← D 层：豆包03知识提炼提示词.md
 06附件/                   ← PDF 原件、图片归档
 07日记/ + README.md + .obsidian/ + .kb_registry.json</pre>
@@ -141,7 +141,7 @@
     <tr><td><code>importer.py</code></td><td>扫描 → 哈希去重 → 归类 → 打标 → 写笔记 → 源文件归位 → 登记</td><td>frontmatter/tagger/registry</td></tr>
     <tr><td><code>frontmatter.py</code></td><td>frontmatter 解析/生成/合并；编码自动探测；原子写</td><td>PyYAML(可选)</td></tr>
     <tr><td><code>tagger.py</code></td><td>关键词规则打标 + #标签 提取，去重限量</td><td>—</td></tr>
-    <tr><td><code>linker.py</code></td><td>标题+标签匹配建链；维护「相关笔记」区块；MOC 生成</td><td>frontmatter</td></tr>
+    <tr><td><code>linker.py</code></td><td>标题+关键词匹配建链；维护「双向链接」区块；生成索引笔记</td><td>frontmatter</td></tr>
     <tr><td><code>registry.py</code></td><td>内容 SHA-256 → 已导入记录的幂等注册表（.kb_registry.json）</td><td>—</td></tr>
     <tr><td><code>logger.py</code></td><td>双日志 + Report 统计 + Markdown 处理报告</td><td>—</td></tr>
     <tr><td><code>scheduler.py</code></td><td>watch 循环；schtasks 注册/卸载；run_sync.bat 生成</td><td>subprocess</td></tr>
@@ -167,8 +167,8 @@
     <div class="flow-step" data-n="4"><div><b>自动打标</b><span>文件名+正文命中「关键词→标签」规则表，并入正文 #标签，去重、限量（max_tags）</span></div></div>
     <div class="flow-step" data-n="5"><div><b>生成规范笔记</b><span>frontmatter（title/tags/created/updated/source/category/status）+ 正文，原子写（临时文件+替换）</span></div></div>
     <div class="flow-step" data-n="6"><div><b>源文件归位 + 登记</b><span>文本源 → 原始素材/02已处理；PDF/文档 → 06附件；最后写注册表（先移动→再写笔记→最后登记的提交顺序，杜绝"未登记却02已处理"）</span></div></div>
-    <div class="flow-step" data-n="7"><div><b>链接引擎 + MOC</b><span>标题关键词倒排索引 + 标签重叠 + 正文点名打分，为每篇笔记追加缺失的 [[双链]]；按标签/分类生成 MOC 索引页</span></div></div>
-    <div class="flow-step" data-n="8"><div><b>报告输出</b><span>统计导入数/新增/跳过/失败/标签/关联/MOC，生成 Markdown 处理报告</span></div></div>
+    <div class="flow-step" data-n="7"><div><b>链接引擎 + 索引</b><span>标题关键词倒排索引 + 标签重叠 + 正文点名打分，为每篇笔记追加缺失的 [[双链]]；为标签/分类生成索引笔记（双向链接回链）</span></div></div>
+    <div class="flow-step" data-n="8"><div><b>报告输出</b><span>统计导入数/新增/跳过/失败/标签/关联/索引，生成 Markdown 处理报告</span></div></div>
   </div>
 
   <h3>5.2 双链关联引擎（标题 + 标签匹配）</h3>
@@ -179,7 +179,7 @@
   4. 过滤 score &lt; min_match，取 Top max_links，跳过已有 [[链接]]
   5. 在笔记尾部「## 相关笔记」区块追加缺失链接（绝不删除已有内容）
   6. 刷新 updated 字段
-之后按标签 / category 汇总生成 MOC 索引页（保留 created、刷新 updated）</pre>
+之后为标签/分类生成索引笔记（双向链接回链）</pre>
   <div class="ok">✅ 策略确定性、可预期：重复运行输出一致（幂等）；相比 AI 建链不消耗 token、不会跑偏，符合兵哥「确定性自动化」理念。</div>
 
   <h3>5.3 幂等与容错设计</h3>
@@ -206,7 +206,7 @@
         <tr><td><code>structure</code></td><td>目录结构（自由增删）</td></tr>
         <tr><td><code>import</code></td><td>inbox / pdf_mode / dedupe_by_hash / max_depth</td></tr>
         <tr><td><code>tags.rules</code></td><td>关键词→标签规则表</td></tr>
-        <tr><td><code>linking</code></td><td>max_links / gen_moc / include_c / links_section</td></tr>
+        <tr><td><code>linking</code></td><td>max_links / gen_index / include_c / links_section</td></tr>
         <tr><td><code>naming</code></td><td>date_prefix / sanitize / max_len</td></tr>
         <tr><td><code>scheduler</code></td><td>interval_minutes / task_name / task_time</td></tr>
       </table>
@@ -217,8 +217,8 @@
         <tr><th>命令</th><th>说明</th></tr>
         <tr><td><code>init</code></td><td>建库（幂等，--force 覆盖）</td></tr>
         <tr><td><code>import [SRC]</code></td><td>批量导入，--dry-run 演练</td></tr>
-        <tr><td><code>link</code></td><td>仅双链 + MOC</td></tr>
-        <tr><td><code>sync</code></td><td>导入+打标+双链+MOC+报告</td></tr>
+        <tr><td><code>link</code></td><td>仅双链 + 索引笔记</td></tr>
+        <tr><td><code>sync</code></td><td>导入+打标+双链+索引+报告</td></tr>
         <tr><td><code>watch</code></td><td>内置循环定时同步</td></tr>
         <tr><td><code>schedule install/uninstall</code></td><td>Windows 计划任务</td></tr>
         <tr><td><code>report</code></td><td>查看最新处理报告</td></tr>
@@ -233,7 +233,7 @@
   <h2><span class="n">7</span>端到端实测结果（真实运行）</h2>
   <p>测试库 <code>test_vault_demo</code>（相对路径，放在项目根目录下运行），输入 5 个样例文件（2×MD、1×TXT、1×PDF、1×PNG）：</p>
   <table>
-    <tr><th>运行</th><th>扫描</th><th>导入/新增</th><th>06附件</th><th>跳过/失败</th><th>双链</th><th>MOC</th></tr>
+    <tr><th>运行</th><th>扫描</th><th>导入/新增</th><th>06附件</th><th>跳过/失败</th><th>双链</th><th>索引</th></tr>
     <tr><td>第 1 次 sync</td><td>5</td><td>4 / 4</td><td>1</td><td>0 / 0</td><td>18 条</td><td>9 页</td></tr>
     <tr><td>第 2 次 sync（幂等）</td><td>0</td><td>0 / 0</td><td>0</td><td>0 / 0</td><td>0 条</td><td>9 页（重生成）</td></tr>
     <tr><td>增量 +1 文件后 sync</td><td>1</td><td>1 / 1</td><td>0</td><td>0 / 0</td><td>+4 条</td><td>计数更新</td></tr>
@@ -241,14 +241,14 @@
   </table>
   <div class="ok">
     ✅ PDF 中文正文提取成功（「电力机车牵引系统」→ 标签 #轨道交通 #电力电子 #标准规范）；
-    自动打标、frontmatter、双链区块、MOC 索引、处理报告、计划任务注册/卸载（ObsidianKB-Sync）全部实测通过。
+    自动打标、frontmatter、双向链接区块、索引笔记、处理报告、计划任务注册/卸载（ObsidianKB-Sync）全部实测通过。
   </div>
   <pre>第 1 次运行摘要（真实日志）:
 [导入] 生成笔记 .../03知识提炼/2026-08-14_电力机车牵引系统.md （标签: 轨道交通,电力电子,标准规范）
 [导入] 06附件归档 → 06附件/灵感速写.png
 [导入] 完成：导入 4，新增笔记 4，06附件 1，跳过 0（重复 0），失败 0
 [链接] 完成：新增双链 18 条，更新笔记 7 篇
-[MOC] 完成：生成/刷新 9 个索引页（5 标签 + 4 分类）</pre>
+[索引] 完成：生成/刷新 9 个索引笔记（5 标签 + 4 分类）</pre>
 </div>
 
 <!-- ============ 8 局限与扩展 ============ -->
