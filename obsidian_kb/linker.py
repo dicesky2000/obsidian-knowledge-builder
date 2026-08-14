@@ -90,7 +90,7 @@ def collect_notes(cfg: Dict[str, Any], vault_root: str,
     c_dir = os.path.join(vault_root, structure.get("C_知识聚合", "知识聚合"))
     moc_rel = structure.get("C_MOC", "知识聚合/MOC")
     moc_abs = os.path.join(vault_root, moc_rel)
-    index_rel = structure.get("B_索引", "知识提炼/索引笔记")
+    index_rel = structure.get("B_索引", "03知识提炼/索引笔记")
     index_abs = os.path.join(vault_root, index_rel)
 
     dirs = [b_dir]
@@ -168,9 +168,11 @@ def run_linking(cfg: Dict[str, Any], vault_root: str, registry: Any,
     date_format = cfg["frontmatter"].get("date_format", "%Y-%m-%d %H:%M")
 
     notes = collect_notes(cfg, vault_root, include_c=include_c)
-    if len(notes) < 2:
-        logger.info("[链接] 笔记不足 2 篇，跳过建链")
+    if not notes:
+        logger.info("[链接] 未发现参与匹配的笔记，跳过建链")
         return
+    if len(notes) < 2:
+        logger.info("[链接] 仅 1 篇笔记：跳过相关笔记互链，仍追加原始素材与索引链接")
 
     # 关键词倒排索引
     kw_index: Dict[str, List[str]] = defaultdict(list)
@@ -236,10 +238,6 @@ def run_linking(cfg: Dict[str, Any], vault_root: str, registry: Any,
                     if not has_source:
                         ranked = ranked[:max(0, max_links - 1)]  # 素材链接占 1 名额
 
-        content, need_section = _ensure_links_section(content, section_title)
-        if need_section:
-            changed = True
-
         # 相关笔记（共享关键词交集，按本笔记原文顺序）
         note_pairs: List[Tuple[str, str]] = []
         for nm, _sc in ranked:
@@ -273,6 +271,8 @@ def run_linking(cfg: Dict[str, Any], vault_root: str, registry: Any,
         new_links.extend(index_lines)
 
         if new_links:
+            # 有实际内容才确保「## 双向链接」区块，避免留下空区块
+            content, _ = _ensure_links_section(content, section_title)
             content = content.rstrip()
             if not content.endswith("\n"):
                 content += "\n"

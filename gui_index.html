@@ -143,6 +143,21 @@
     outline: 2px solid var(--ring); outline-offset: 2px;
   }
 
+  /* ---------- 分组容器（豆包自动整理功能栏） ---------- */
+  .btn-group {
+    display: flex; flex-wrap: wrap; align-items: center; gap: 8px;
+    border: 1px dashed var(--line-2); border-radius: 12px;
+    padding: 10px 12px; margin-top: 10px; background: #fbfdff;
+  }
+  .btn-group .grp-title {
+    flex: 0 0 100%; display: flex; align-items: center; gap: 6px;
+    font-size: 12.5px; font-weight: 600; color: var(--muted);
+    letter-spacing: .5px;
+  }
+  .btn-group .grp-title::after {
+    content: ""; flex: 1; height: 1px; background: var(--line); margin-left: 8px;
+  }
+
   /* ---------- 待同步资料列表 ---------- */
   .inbox-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; gap: 8px; flex-wrap: wrap; }
   .inbox-head span { font-size: 13px; color: var(--muted); }
@@ -192,6 +207,41 @@
     line-height: 1.7; white-space: pre-wrap; word-break: break-all;
     border: 1px solid #020617;
   }
+
+  /* ---------- 运行日志悬浮窗（可拖动 + 右下角缩放） ---------- */
+  .logwin {
+    position: fixed; right: 20px; bottom: 20px; z-index: 100;
+    width: 520px; height: 56vh; min-width: 280px; min-height: 160px;
+    display: flex; flex-direction: column;
+    background: var(--surface);
+    border: 1px solid var(--line); border-radius: var(--radius);
+    box-shadow: var(--shadow-md);
+    overflow: hidden; resize: both;
+  }
+  .logwin-head {
+    flex: none; display: flex; align-items: center; justify-content: space-between;
+    gap: 10px; padding: 8px 12px; cursor: move; user-select: none;
+    background: var(--primary-soft);
+    border-bottom: 1px solid var(--line);
+    border-radius: calc(var(--radius) - 1px) calc(var(--radius) - 1px) 0 0;
+  }
+  .logwin-title { font-size: 13.5px; font-weight: 700; color: var(--ink); }
+  .logwin-btn {
+    border: 1px solid var(--line-2); background: #fff; color: var(--primary);
+    border-radius: 8px; padding: 2px 12px; font-size: 12px; font-weight: 600;
+    font-family: var(--font); cursor: pointer;
+  }
+  .logwin-btn:hover { background: var(--primary-soft); }
+  .logwin-body { flex: 1; min-height: 0; padding: 10px; display: flex; }
+  .logwin-body .logbox { flex: 1; height: auto; min-height: 0; }
+  /* 嵌入页面原位（07 卡片槽位）：随页面滚动，禁拖动/缩放 */
+  .logwin.docked {
+    position: static; width: auto; height: 56vh; max-height: 56vh;
+    resize: none; margin-top: 16px; z-index: auto;
+  }
+  .logwin.docked .logwin-head { cursor: default; }
+  .logwin.minimized { height: auto; resize: none; }
+  .logwin.minimized .logwin-body { display: none; }
 
   /* ---------- 提示横幅 / 页脚 ---------- */
   .toast {
@@ -280,11 +330,10 @@
         <button class="btn soft" id="btnRefreshInbox">刷新</button>
       </span>
     </div>
-    <div class="inbox-list" id="inboxList">
-      <div class="empty">（暂无文件）</div>
+      <div class="inbox-list" id="inboxList">
+        <div class="empty">（暂无文件）</div>
+      </div>
     </div>
-    <div class="hint">删除的文件会移到知识库里的「_kb_回收站」文件夹，可在文件管理器中找回，不会真正丢失。</div>
-  </div>
 
   <!-- ④ 最近结果 -->
   <div class="card">
@@ -307,25 +356,28 @@
     <div class="hint" style="margin-bottom:12px">流程：把素材放进知识库的 <b>01未处理</b> 文件夹（豆包会自动扫描这一处）→ 点「开始」约 2 秒后自动把豆包切前台并最大化 → 程序把素材按 D 层提示词模板发给豆包，自动复制回复生成 B 层笔记（素材随之移入「02已处理」）。先记录三个按钮位置（鼠标移到豆包对应位置按 F6）。整理期间<b>不要动鼠标和键盘</b>。</div>
 
     <div class="status-line" id="coordStatus">坐标：未记录</div>
-    <div class="row" style="margin-bottom:8px">
-      <label style="font-size:14px">坐标文件</label>
+    <div class="btn-group">
+      <span class="grp-title">坐标文件</span>
       <input type="text" id="coordFile" placeholder="豆包坐标" style="min-width:120px">
       <button class="btn ghost" id="btnCoordUse">使用该文件</button>
       <select id="coordFileList" style="min-width:160px"></select>
     </div>
-    <div class="row">
+    <div class="btn-group">
+      <span class="grp-title">坐标记录</span>
       <button class="btn ghost" id="btnRecInput">记录输入框坐标</button>
       <button class="btn ghost" id="btnRecScroll">记录下翻坐标</button>
       <button class="btn ghost" id="btnRecCopy">记录复制坐标</button>
       <button class="btn soft" id="btnCoordCancel" style="display:none">取消记录</button>
+    </div>
+    <div class="btn-group">
+      <span class="grp-title">坐标维护</span>
       <button class="btn soft" id="btnCoordExport">生成坐标文件</button>
       <button class="btn soft" id="btnCoordImport">导入坐标文件</button>
       <button class="btn soft" id="btnCoordClear">清除坐标</button>
       <button class="btn soft" id="btnDoubaoTest">测试鼠标模拟</button>
     </div>
-    <input type="file" id="pickCoord" accept=".json,application/json" style="display:none">
-    <div class="hint">坐标只需记录一次并保存为文件（可存多套，如"家用电脑"、"办公室"），下次直接用「使用该文件」切换即可，无需重新记录。</div>
-    <div class="row" style="margin-top:14px">
+    <div class="btn-group">
+      <span class="grp-title">整理参数</span>
       <label style="font-size:14px">等待豆包生成
         <input type="number" id="dbWait" min="5" max="300" style="width:70px;min-width:0" value="30">
         秒
@@ -334,10 +386,15 @@
         <input type="number" id="dbMax" min="0" style="width:70px;min-width:0" value="1">
         次（0=全部处理）
       </label>
-      <button class="btn soft" id="btnDbAutoMatch" title="把循环次数设为「待同步资料」里的文件数">自动匹配</button>
-      <button class="btn go" id="btnDoubaoStart">开始豆包整理</button>
+      <button class="btn soft" id="btnDbAutoMatch" title="把循环次数设为「待整理资料」里的文件数">自动匹配</button>
+    </div>
+    <div class="btn-group" style="justify-content:flex-end">
+      <span class="grp-title">执行</span>
+      <button class="btn go" id="btnDoubaoStart" style="min-width:140px">开始豆包整理</button>
       <button class="btn danger" id="btnDoubaoStop" style="display:none">停止</button>
     </div>
+    <input type="file" id="pickCoord" accept=".json,application/json" style="display:none">
+    <div class="hint">坐标只需记录一次并保存为文件（可存多套，如"家用电脑"、"办公室"），下次直接用「使用该文件」切换即可，无需重新记录。</div>
 
     <!-- 提示词格式配置 -->
     <div style="margin-top:14px;border-top:1px dashed #cbd5e1;padding-top:12px">
@@ -363,27 +420,8 @@
 
   <!-- ⑥ 高级设置 -->
   <div class="card">
-    <h2><span class="cat-no">06</span>高级设置：存放位置（可自定义）</h2>
-    <div class="hint" style="margin-bottom:12px">留空则使用默认位置。填写后点「保存」，只影响之后整理的文件。</div>
-    <div class="row" style="margin-bottom:8px">
-      <label style="font-size:14px;width:90px">笔记目录</label>
-      <input type="text" id="dirNote" placeholder="默认：03知识提炼">
-    </div>
-    <div class="row" style="margin-bottom:8px">
-      <label style="font-size:14px;width:90px">报告目录</label>
-      <input type="text" id="dirReport" placeholder="默认：处理日志">
-    </div>
-    <div class="row" style="margin-bottom:8px">
-      <label style="font-size:14px;width:90px">06附件目录</label>
-      <input type="text" id="dirAttach" placeholder="默认：06附件">
-    </div>
-    <div class="row" style="margin-top:14px">
-      <button class="btn" id="btnDirSave">保存存放位置</button>
-    </div>
-    <div class="hint">目录名相对于知识库根目录，例如填「我的笔记」就是 <b>知识库/我的笔记</b>。</div>
-
-    <!-- 调试模式 -->
-    <div style="margin-top:16px;border-top:1px dashed #cbd5e1;padding-top:12px">
+    <h2><span class="cat-no">06</span>高级设置</h2>
+    <div style="margin-top:4px">
       <div style="margin-bottom:4px"><label style="font-size:14px;font-weight:600">调试模式</label></div>
       <div class="hint" style="margin-bottom:8px">开启后，豆包整理将<b>跳过链接引擎 / MOC / 处理报告</b>；点「复位」可撤销调试期间的全部操作：删除新建的笔记/MOC/日志，并把已处理素材移回 <b>01未处理</b>。调试期请用网页「豆包自动整理」，勿用命令行 sync（会污染既有笔记的相关笔记区块）。</div>
       <div class="row">
@@ -393,10 +431,18 @@
     </div>
   </div>
 
-  <!-- ⑦ 运行日志 -->
-  <div class="card">
-    <h2><span class="cat-no">07</span>运行日志</h2>
-    <div class="logbox" id="logbox"></div>
+  <!-- ⑦ 运行日志（悬浮窗：可拖动、右下角缩放、可最小化；可嵌入页面原位固定） -->
+  <div class="logwin" id="logWin">
+    <div class="logwin-head" id="logWinHead">
+      <span class="logwin-title">运行日志</span>
+      <span class="row" style="gap:6px">
+        <button class="logwin-btn" id="btnLogDock">嵌入</button>
+        <button class="logwin-btn" id="btnLogToggle">最小化</button>
+      </span>
+    </div>
+    <div class="logwin-body" id="logWinBody">
+      <div class="logbox" id="logbox"></div>
+    </div>
   </div>
 
   <footer>
@@ -495,13 +541,11 @@ async function refreshStatus() {
     renderStatus(s);
     renderDoubao(s);
     renderDebug(s);
-    if (!dirsLoaded) { fillDirs(s.dirs); dirsLoaded = true; }
     if (!promptsLoaded) { fillPrompts(s.prompts); promptsLoaded = true; }
     if (!genSpecLoaded && s.gen_spec) { $("genSpec").value = s.gen_spec; genSpecLoaded = true; }
   }
 }
 
-let dirsLoaded = false;
 let genSpecLoaded = false;
 let debugTouched = false;
 function renderDebug(s) {
@@ -509,12 +553,6 @@ function renderDebug(s) {
   if (!debugTouched) $("debugEnabled").checked = !!dbg.enabled;
   $("btnDebugReset").style.display = dbg.enabled ? "inline-block" : "none";
   $("btnDebugReset").disabled = !!s.busy;
-}
-function fillDirs(dirs) {
-  if (!dirs) return;
-  if (dirs["笔记"] !== undefined) $("dirNote").value = dirs["笔记"] || "";
-  if (dirs["报告"] !== undefined) $("dirReport").value = dirs["报告"] || "";
-  if (dirs["附件"] !== undefined) $("dirAttach").value = dirs["附件"] || "";
 }
 
 let promptsLoaded = false;
@@ -738,21 +776,6 @@ $("inboxSelAll").onchange = () => {
 
 $("btnRefreshInbox").onclick = () => refreshInbox();
 
-// ---- 高级设置：存放位置 ----
-$("btnDirSave").onclick = async () => {
-  busy($("btnDirSave"), "保存中…");
-  const dirs = {
-    "笔记": $("dirNote").value.trim(),
-    "报告": $("dirReport").value.trim(),
-    "附件": $("dirAttach").value.trim(),
-  };
-  const r = await api("/api/dirs", { dirs });
-  idle($("btnDirSave"));
-  if (r && r.ok) toast("存放位置已保存 ✓（影响之后整理的文件）");
-  else if (!r) toast("无法连接服务，请先双击启动 bat", false);
-  else toast(r.error || "保存失败", false);
-};
-
 // ---- 高级设置：调试模式 ----
 $("debugEnabled").onchange = async () => {
   debugTouched = true;
@@ -891,6 +914,44 @@ async function pollLogs() {
     box.scrollTop = box.scrollHeight;
   }
 }
+
+// ---- 运行日志悬浮窗：拖动 + 嵌入/悬浮 + 最小化/还原 ----
+(function () {
+  const win = $("logWin"), head = $("logWinHead"),
+        btn = $("btnLogToggle"), dock = $("btnLogDock");
+  let dragging = false, ox = 0, oy = 0;
+  head.addEventListener("mousedown", e => {
+    if (win.classList.contains("docked")) return;   // 嵌入态禁拖
+    if (e.target === btn || btn.contains(e.target)) return;
+    if (e.target === dock || dock.contains(e.target)) return;
+    dragging = true;
+    ox = e.clientX - win.offsetLeft;
+    oy = e.clientY - win.offsetTop;
+    e.preventDefault();
+  });
+  document.addEventListener("mousemove", e => {
+    if (!dragging) return;
+    win.style.right = "auto";
+    win.style.bottom = "auto";
+    win.style.left = Math.max(0, Math.min(e.clientX - ox,
+      window.innerWidth - win.offsetWidth)) + "px";
+    win.style.top = Math.max(0, Math.min(e.clientY - oy,
+      window.innerHeight - win.offsetHeight)) + "px";
+  });
+  document.addEventListener("mouseup", () => { dragging = false; });
+  btn.addEventListener("click", () => {
+    const minimized = win.classList.toggle("minimized");
+    btn.textContent = minimized ? "还原" : "最小化";
+  });
+  dock.addEventListener("click", () => {
+    const docked = win.classList.toggle("docked");
+    // 清掉拖动/resize 残留的 inline 定位与尺寸，让 CSS 接管
+    win.style.left = ""; win.style.top = "";
+    win.style.right = ""; win.style.bottom = "";
+    win.style.width = ""; win.style.height = "";
+    dock.textContent = docked ? "悬浮" : "嵌入";
+  });
+})();
 
 // ---- 启动 ----
 (async () => {
