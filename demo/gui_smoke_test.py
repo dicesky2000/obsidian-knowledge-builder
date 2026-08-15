@@ -84,11 +84,11 @@ def main():
     names = [it["name"] for it in r.get("items", [])]
     say("[3.1 01未处理列表] %s" % names)
 
-    # 3.2 删除其中一个（应移入 _kb_回收站，可找回）
+    # 3.2 删除其中一个（应移入 回收站，可找回）
     r = api("/api/inbox/delete", {"items": [{"name": "轨道车辆标准.txt", "source": "01未处理"}]})
     say("[3.2 删除] moved=%s 剩余=%s" % (r.get("moved"),
          [it["name"] for it in r.get("items", [])]))
-    trash = os.path.join(VAULT, "_kb_回收站")
+    trash = os.path.join(VAULT, "回收站")
     say("[3.2 回收站] 目录存在=%s 文件数=%d" % (
         os.path.isdir(trash),
         len(os.listdir(trash)) if os.path.isdir(trash) else 0))

@@ -37,7 +37,7 @@ def _root(cfg: Dict[str, Any], root: Optional[str]) -> str:
 def _sync(cfg: Dict[str, Any], vault_root: str, cfg_path: Optional[str],
           dry_run: bool = False, no_move: bool = False,
           no_dedupe: bool = False) -> None:
-    """导入 + 打标 + 双链 + MOC + 报告（sync 的实质）。"""
+    """导入 + 打标 + 双链 + 索引 + 报告（sync 的实质）。"""
     logger, report = logger_mod.setup_logging(
         cfg["logging"].get("log_dir", "处理日志"), vault_root)
     started = datetime.datetime.now()
@@ -51,7 +51,6 @@ def _sync(cfg: Dict[str, Any], vault_root: str, cfg_path: Optional[str],
                         dry_run=dry_run, no_move=no_move, no_dedupe=no_dedupe)
     if not dry_run:
         linker.run_linking(cfg, vault_root, reg, logger, report)
-        linker.generate_mocs(cfg, vault_root, logger, report)
         linker.generate_indexes(cfg, vault_root, logger, report)
         reg.save()
 
@@ -105,7 +104,6 @@ def cmd_link(args: argparse.Namespace) -> int:
     started = datetime.datetime.now()
     reg = registry.Registry(root)
     linker.run_linking(cfg, root, reg, logger, report)
-    linker.generate_mocs(cfg, root, logger, report)
     linker.generate_indexes(cfg, root, logger, report)
     reg.save()
     duration = (datetime.datetime.now() - started).total_seconds()
@@ -191,11 +189,11 @@ def main(argv: Optional[List[str]] = None) -> int:
     p.add_argument("--no-dedupe", action="store_true", help="关闭内容去重")
     p.set_defaults(func=cmd_import)
 
-    p = sub.add_parser("link", help="仅执行双链引擎 + MOC 索引")
+    p = sub.add_parser("link", help="仅执行双链引擎 + 索引笔记")
     add_common(p)
     p.set_defaults(func=cmd_link)
 
-    p = sub.add_parser("sync", help="一次性同步：导入+打标+双链+MOC+报告")
+    p = sub.add_parser("sync", help="一次性同步：导入+打标+双链+索引+报告")
     add_common(p)
     p.add_argument("--dry-run", action="store_true", help="只演练，不写文件")
     p.add_argument("--no-move", action="store_true", help="导入后不移走源文件")

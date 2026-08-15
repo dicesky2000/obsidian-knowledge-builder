@@ -110,11 +110,15 @@ KEYEVENTF_KEYUP = 0x0002
 MOUSEEVENTF_LEFTDOWN = 0x0002
 MOUSEEVENTF_LEFTUP = 0x0004
 CF_UNICODETEXT = 13
+CF_HDROP = 15
 GMEM_MOVEABLE = 0x0002
 SW_MAXIMIZE = 3
 PROCESS_QUERY_LIMITED_INFORMATION = 0x1000
 TOKEN_QUERY = 0x0008
 TokenElevation = 20
+
+FILE_UPLOAD_WAIT = 3          # 文件粘贴后等待豆包上传解析的秒数（2~4 秒可取中值）
+FILE_MAX_MB = 50              # 文件直发大小上限（超过则跳过并计入失败，防豆包拒收/长等）
 
 COORD_NAMES = ["输入框", "下翻箭头", "复制按钮"]
 
@@ -135,6 +139,53 @@ def clipboard_set_text(text: str) -> bool:
         ctypes.memmove(ptr, data, len(data))
         kernel32.GlobalUnlock(h_mem)
         user32.SetClipboardData(CF_UNICODETEXT, h_mem)
+        return True
+    finally:
+        user32.CloseClipboard()
+
+
+class _DROPFILES(ctypes.Structure):
+    """CF_HDROP 头结构。内存布局（x86/x64 均为 20 字节）：
+    offset 0  pFiles  DWORD 文件列表相对本结构起点的偏移
+    offset 4  pt      POINT 投放点（用不上，全 0）
+    offset 12 fNC     BOOL  非客户区标志（0）
+    offset 16 fWide   BOOL  1=UTF-16 路径
+    offset 20 ── 文件列表从这里开始 ──
+    """
+    _fields_ = [
+        ("pFiles", wintypes.DWORD),
+        ("pt", wintypes.POINT),
+        ("fNC", wintypes.BOOL),
+        ("fWide", wintypes.BOOL),
+    ]
+
+
+def clipboard_set_files(paths: List[str]) -> bool:
+    """把文件列表写入剪贴板（CF_HDROP，UTF-16），供输入框 Ctrl+V 直接粘贴附件。
+
+    布局：DROPFILES 头(20B) + 各绝对路径以 \\0 分隔 + 末尾 \\0\\0 双 null 结束。
+    与 clipboard_set_text 互斥：每次粘贴前都会重置剪贴板内容。
+    """
+    if not paths:
+        return False
+    files = [os.path.abspath(p) for p in paths]
+    df = _DROPFILES()
+    df.pFiles = ctypes.sizeof(_DROPFILES)          # 20：文件列表起始偏移
+    df.fWide = 1                                    # UTF-16 路径
+    header = ctypes.string_at(ctypes.addressof(df), ctypes.sizeof(df))
+    payload = ("\0".join(files) + "\0\0").encode("utf-16-le")
+    data = header + payload
+    if not user32.OpenClipboard(None):
+        return False
+    try:
+        user32.EmptyClipboard()
+        h_mem = kernel32.GlobalAlloc(GMEM_MOVEABLE, len(data))
+        if not h_mem:
+            return False
+        ptr = kernel32.GlobalLock(h_mem)
+        ctypes.memmove(ptr, data, len(data))
+        kernel32.GlobalUnlock(h_mem)
+        user32.SetClipboardData(CF_HDROP, h_mem)
         return True
     finally:
         user32.CloseClipboard()
@@ -464,18 +515,30 @@ def _iter_material_sources(cfg: Dict[str, Any], vault_root: str) -> List[str]:
 
 
 def _list_materials(sources: List[str]) -> List[Tuple[str, str]]:
-    """列出多个素材目录下的 .md/.txt 文件，返回 [(绝对路径, 文件名), ...]（按文件名排序）。"""
+    """列出多个素材目录下的所有非隐藏素材文件（.md/.txt 走文本，其余整文件直发豆包），
+    返回 [(绝对路径, 文件名), ...]（按文件名排序）。"""
     out: List[Tuple[str, str]] = []
     for d in sources:
         if not os.path.isdir(d):
             continue
         for f in os.listdir(d):
             p = os.path.join(d, f)
-            if os.path.isfile(p) and not f.startswith(".") \
-                    and f.lower().endswith((".md", ".txt")):
+            if os.path.isfile(p) and not f.startswith("."):
                 out.append((p, f))
     out.sort(key=lambda x: x[1])
     return out
+
+
+def _read_material(src: str) -> Tuple[str, Any]:
+    """读取素材，返回 (kind, payload)：
+    - .md/.txt → ("text", 文本内容)；读取失败抛 ValueError（编码探测失败/文件不可读）。
+    - 其他非隐藏文件 → ("file", 绝对路径)：不提取文字，整文件交给豆包解析。
+    """
+    ext = os.path.splitext(src)[1].lower()
+    if ext in (".md", ".txt"):
+        from . import frontmatter
+        return "text", frontmatter.read_text_auto(src)
+    return "file", os.path.abspath(src)
 
 
 def build_prompt(material_text: str, vault_root: str, cfg: Dict[str, Any],
@@ -567,7 +630,7 @@ def refine_loop(cfg: Dict[str, Any], vault_root: str, coords: Dict[str, Dict[str
         os.makedirs(d, exist_ok=True)
     files = _list_materials(sources)  # [(绝对路径, 文件名), ...]
     if not files:
-        logger.info("[豆包] 在以下目录均未找到 .md/.txt 素材，请先把要提炼的素材放进去：%s",
+        logger.info("[豆包] 在以下目录均未找到可提炼素材（非隐藏文件），请先把要提炼的素材放进去：%s",
                     "、".join(sources))
         return
     if max_items:
@@ -591,41 +654,68 @@ def refine_loop(cfg: Dict[str, Any], vault_root: str, coords: Dict[str, Dict[str
 
         report.scanned += 1
         try:
-            from . import frontmatter
-            material = frontmatter.read_text_auto(src)
+            kind, payload = _read_material(src)
         except Exception as e:
             report.failed += 1
             report.errors.append("%s: %s" % (fname, e))
             logger.error("[豆包] 读取素材失败 %s: %s", fname, e)
             continue
 
-        logger.info("[豆包] (%d/%d) 正在提炼：%s", idx, len(files), fname)
-        prompt = build_prompt(material, vault_root, cfg,
-                              send_format=send_format)
+        if kind == "text":
+            prompt = build_prompt(payload, vault_root, cfg,
+                                  send_format=send_format)
+        else:
+            # 文件直发：{素材内容} 占位符替换为文件名说明（无正文可填）
+            file_desc = "素材文件：%s（请先读取上方粘贴的附件文件内容，再按模板格式提炼笔记）" % fname
+            prompt = build_prompt(file_desc, vault_root, cfg,
+                                  send_format=send_format)
+            # 超大文件直接跳过，避免豆包拒收 + 浪费等待时间
+            try:
+                if os.path.getsize(src) > FILE_MAX_MB * 1024 * 1024:
+                    report.failed += 1
+                    report.errors.append("%s: 文件超过 %dMB 上限" % (fname, FILE_MAX_MB))
+                    logger.error("[豆包] 跳过超大文件 %s（>%dMB）", fname, FILE_MAX_MB)
+                    continue
+            except OSError as e:
+                report.failed += 1
+                report.errors.append("%s: %s" % (fname, e))
+                logger.error("[豆包] 读取素材失败 %s: %s", fname, e)
+                continue
+
+        logger.info("[豆包] (%d/%d) 正在提炼：%s（%s）", idx, len(files), fname,
+                    "文本" if kind == "text" else "文件直发")
         ok = False
         for attempt in (1, 2):  # 失败自动重试一次
             try:
-                clipboard_set_text(prompt)    # 1. 先放入剪贴板
                 _move_to(*in_box)
-                _click()                      # 2. 点击输入框坐标
+                _click()                      # 1. 点击输入框坐标
                 time.sleep(0.5)               #    等待 0.5s
-                _paste_clipboard()            # 3. 粘贴文本内容
-                time.sleep(0.4)
-                _key(VK_RETURN)               # 4. 发送
-                logger.info("[豆包] 已发送，等待 %d 秒生成……", wait_seconds)
-                if _wait_interruptible(wait_seconds, stop_event):
-                    logger.info("[豆包] 等待期间被中断")
+                if kind == "text":
+                    clipboard_set_text(prompt)
+                    _paste_clipboard()        # 2a. 粘贴文本
+                    time.sleep(0.4)
+                else:
+                    if not clipboard_set_files([src]):
+                        raise RuntimeError("文件剪贴板设置失败（剪贴板被占用或非 Windows）")
+                    _paste_clipboard()        # 2b. ① 文件进输入框
+                    logger.info("[豆包] 已粘贴文件，等待上传解析……")
+                    if _wait_interruptible(FILE_UPLOAD_WAIT, stop_event):
+                        logger.info("[豆包] 文件上传等待期间被中断")
+                        return
+                    clipboard_set_text(prompt)
+                    _paste_clipboard()        # 2c. ② 提示词进输入框
+                    time.sleep(0.4)
+                _key(VK_RETURN)               # 3. 发送
+                logger.info("[豆包] 已发送，轮询复制直到拿到新回复……")
+                clipboard_set_text("")        # 清空剪贴板：避免残留提示词/旧内容误导「新内容」判定
+                reply = _wait_new_reply(copy_pt, scroll_pt, "", stop_event,
+                                        wait_seconds, logger)
+                if reply is None:
+                    logger.info("[豆包] 等待新回复期间被中断")
                     return
-                _move_to(*scroll_pt)
-                _click()                      # 5. 点击下翻坐标
-                time.sleep(1.0)               #    等待 1s
-                _move_to(*copy_pt)
-                _click()                      # 6. 点击复制坐标
-                time.sleep(0.6)
-                reply = clipboard_get_text().strip()
-                if len(reply) < 30:
-                    logger.warning("[豆包] 第 %d 次复制内容过短（%d 字），重试……",
-                                   attempt, len(reply))
+                if not reply or len(reply) < 30:
+                    logger.warning("[豆包] 第 %d 次未获取到新回复（%d 字），重试……",
+                                   attempt, len(reply or ""))
                     time.sleep(3)
                     continue
                 ok = True
@@ -687,3 +777,36 @@ def _wait_interruptible(seconds: int, stop_event: Optional[Any]) -> bool:
             return True
         time.sleep(0.2)
     return False
+
+
+def _wait_new_reply(copy_pt, scroll_pt, old_reply, stop_event, wait_seconds, logger) -> Optional[str]:
+    """发送后轮询复制，直到剪贴板出现非空新内容（= 豆包新回复）。
+
+    调用方在发送后会先 clipboard_set_text("") 清空剪贴板，并把 old_reply 传 ""，
+    因此判定「cur 非空」即视为复制到新回复（旧基准为空的特殊情况）。
+    豆包生成中点「复制按钮」剪贴板不变（用户实测）；生成完点复制可复制到新回复。
+    循环：点复制 → 读剪贴板 → 未复制到新内容则点下翻滚到最新 → 等 1s → 再点复制。
+
+    返回 None=被中断（调用方应 return 退出循环）；
+    否则返回复制到的内容（新内容，或超时兜底的当前内容）。
+    """
+    timeout = max((wait_seconds or 30) * 3, 180)
+    deadline = time.time() + timeout
+    while True:
+        if stop_event and stop_event.is_set():
+            return None
+        if user32.GetAsyncKeyState(VK_ESCAPE) & 0x8000:
+            return None
+        _move_to(*copy_pt)
+        _click()                      # 点复制按钮
+        time.sleep(0.5)
+        cur = clipboard_get_text().strip()
+        if cur and cur != old_reply:
+            logger.info("[豆包] 已复制到新回复（%d 字）", len(cur))
+            return cur
+        if time.time() > deadline:
+            logger.warning("[豆包] 等待新回复超时（%.0fs），按当前内容继续", timeout)
+            return cur
+        _move_to(*scroll_pt)
+        _click()                      # 下翻滚到最新回复
+        time.sleep(1.0)

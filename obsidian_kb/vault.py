@@ -85,7 +85,6 @@ README_MD = """# {vault_name}
 - **02已处理/** —— 导入/提炼完成后，源文件自动移入此处归档
 - **03知识提炼/** —— B 层：标准化知识笔记，自动打标 + 自动双链
 - **04知识聚合/** —— C 层：你的创作空间，程序不会触碰
-- **04知识聚合/MOC/** —— 自动生成的标签/分类索引页
 - **05规则模板/** —— D 层：提示词与格式规范，可自行修改
 - **06附件/** —— PDF、图片等原始文件归档
 - **07日记/** —— 学习心得、日常记录
@@ -94,7 +93,7 @@ README_MD = """# {vault_name}
 
 ```bash
 python run.py init            # 建库（重复运行安全）
-python run.py sync            # 导入 + 打标 + 双链 + MOC + 报告（一次性）
+python run.py sync            # 导入 + 打标 + 双链 + 索引 + 报告（一次性）
 python run.py watch           # 定时自动同步（内置循环）
 python run.py schedule --install   # 注册 Windows 计划任务
 ```

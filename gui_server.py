@@ -13,7 +13,10 @@
   POST /api/set_root        设置知识库位置
   POST /api/init            创建知识库
   POST /api/upload          上传资料到未处理（base64 JSON）
-  POST /api/inbox/delete    删除未处理文件（移入 _kb_回收站，可找回）
+  POST /api/inbox/delete    删除未处理文件（移入 回收站，可找回）
+  GET  /api/trash           回收站文件列表（回收站，可恢复）
+  POST /api/trash/restore   恢复回收站文件回 01未处理（还原原名）
+  POST /api/trash/clear     清空回收站（物理删除，不可找回）
   POST /api/prompts         保存豆包提示词格式（发送格式）
   POST /api/debug/toggle    开关调试模式（开启时记录各目录快照）
   POST /api/debug/reset     调试复位：清除调试期间生成文件、已处理素材移回未处理
@@ -42,17 +45,12 @@ BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 RUN_PY = os.path.join(BASE_DIR, "run.py")
 INDEX_FILE = os.path.join(BASE_DIR, "gui_index.html")
 DEFAULT_CONFIG = os.path.join(BASE_DIR, "kbconfig.yaml")
-USER_CONFIG = os.path.join(BASE_DIR, "kbconfig_user.yaml")
 STATE_FILE = os.path.join(BASE_DIR, "gui_state.json")
 DEFAULT_COORD_FILE = "豆包坐标.json"
 STARTUP_LOG = os.path.join(BASE_DIR, "gui_startup.log")
 URL_FILE = os.path.join(BASE_DIR, "gui_url.txt")
 PORT = 8765
 PORT_TRIES = 10
-
-# 可自定义的存放位置（值 = 相对库根的目录名/子路径，空 = 用默认）
-DIR_KEYS = {"笔记": "B_知识提炼", "报告": "logging.log_dir",
-            "附件": "附件"}
 
 # 豆包提示词默认内容（未在 GUI 配置时使用；{素材内容} 为素材正文占位符）
 SEND_DEFAULT = """# 豆包提示词 — 知识提炼助手
@@ -108,13 +106,14 @@ type: 笔记
 # B 层知识提炼笔记的生成逻辑与结构（只读展示，不参与生成）
 GEN_SPEC = """B层知识提炼笔记 — 生成逻辑与结构（只读参考）
 
-【一、由哪些部分组成】（6 个固定部分，顺序不可变）
+【一、由哪些部分组成】（7 个固定部分，顺序不可变）
 1. frontmatter 元数据：type: 笔记；分类（最多6个）；原始链接（出处URL或说明）；作者（未知留空）
 2. 一级标题：# 一句话总结（4~20 个中文字符）
 3. 关键词行：**关键词**：8~18 个，逗号分隔（中英文混合，保持原样）
 4. 摘要行：**摘要**：浓缩核心内容，不超过 120 字
 5. 详细内容：## 详细内容 —— 不少于 600 字，分自然段，用自己的话重新组织，不能原文摘抄
 6. 逻辑树（可选）：## 逻辑树 —— 结构复杂的知识点用层级列表表达
+7. 双向链接（末尾自动追加）：## 双向链接 —— 原始素材回链 + 相关笔记互链（共享关键词）+ 索引笔记链接（详见【六、双向链接】）
 
 【二、拼接方式】
 文件名 = 一句话总结 + "_" + YYYYMMDDHHMMSS + ".md"
@@ -134,7 +133,7 @@ GEN_SPEC = """B层知识提炼笔记 — 生成逻辑与结构（只读参考）
 6. 保存到 03知识提炼/一句话总结_时间戳.md（B 层，只删不改）
 7. 素材从 01未处理 移至 02已处理
 8. 全部完成后运行链接引擎：关键词全转小写精确匹配，共享 ≥3 个即建链，
-   每篇最多保留前 8 个链接，并链接到自身对应的已处理原文；再生成 MOC 索引
+   每篇最多保留前 8 个链接，并链接到自身对应的已处理原文；再生成 双向链接 区块与索引笔记（详见【六、双向链接】）
 
 【四、字段约束】
 · 分类：最多 6 个，由豆包自行归纳（技术原理、商业策略、学习方法等）
@@ -148,6 +147,18 @@ GEN_SPEC = """B层知识提炼笔记 — 生成逻辑与结构（只读参考）
 · B 层笔记只删不改；过时/错误内容直接删除笔记文件
 · 删除后产生的死链接不予修复
 · 链接引擎在全部新笔记处理完毕后统一运行，每篇笔记只写一次
+
+【六、双向链接】（B 层笔记末尾自动追加）
+· 区块位置：每篇 B 层笔记正文最末尾，自动追加「## 双向链接」小节，依次包含三部分：
+  ① 原始素材回链：`- [原始素材](相对路径)` —— 链接到自身对应的已处理原文
+     （frontmatter.source 优先，.kb_registry.json 注册表回退；占用 1 个链接名额）
+  ② 相关笔记互链：`- [[笔记名]] — 共享关键词：交集` —— 关键词全转小写后精确匹配，
+     共享 ≥3 个相同关键词即建链（阈值可调），每篇最多保留前 8 条，按共享数降序排列
+  ③ 索引笔记链接：`- [[索引_x]] — 共享关键词：…` —— 不受 8 条限制，每命中一个关键词或分类值各一条
+· 索引笔记：目录 = 03知识提炼/索引笔记（structure.B_索引）；命名 = 索引_<关键词>.md /
+  索引_分类_<分类值>.md；内容 = `# 索引：<主题>` + 空行 + `- [[B层笔记]]` 列表，
+  无 frontmatter；与 B 层笔记互相链接，形成「笔记 ↔ 索引」双向链接
+· 关键词来源：正文 **关键词**：行 + frontmatter「关键词」/「tags」+「分类」（按中文逗号拆分）
 """
 
 
@@ -162,10 +173,9 @@ if os.name == "nt" and os.path.basename(PYTHON).lower().startswith("pythonw"):
 _lock = threading.Lock()                 # 操作串行锁
 _state = {
     "root": "",                          # 知识库位置
-    "dirs": {"笔记": "", "报告": "", "附件": ""},  # 自定义存放位置
     "coord_file": DEFAULT_COORD_FILE,    # 当前豆包坐标文件名（可自定义，支持多套）
     "prompts": {},                       # 豆包提示词配置 {"send_format"}
-    "debug": {"enabled": False, "snapshot": {"inbox": [], "done": [], "notes": [], "moc": [], "logs": []}},
+    "debug": {"enabled": False, "snapshot": {"inbox": [], "done": [], "notes": [], "logs": []}},
 }
 _log_seq = itertools.count(1)
 _log_lines = deque(maxlen=4000)          # 界面日志缓冲
@@ -175,6 +185,7 @@ _coords = {}                             # 豆包坐标 {'输入框':{'x','y'},.
 _coord_waiting = {"which": ""}           # 正在等待用户记录哪个坐标
 _doubao_stop = threading.Event()         # 豆包整理停止信号
 _doubao_running = {"flag": False}
+_doubao_end = {"state": "", "msg": ""}   # 最近一次豆包整理结束状态（ok/error/stopped）
 _coord_cancel = threading.Event()        # 坐标记录取消信号
 
 
@@ -207,8 +218,8 @@ def load_state():
         with open(STATE_FILE, "r", encoding="utf-8-sig") as f:
             data = json.load(f)
         if isinstance(data, dict):
-            # 清理旧版本残留字段（自动同步已随「一键同步」一起移除）
-            for k in ("schedule_enabled", "schedule_minutes"):
+            # 清理旧版本残留字段（自动同步已随「一键同步」移除；存放目录自定义已移除）
+            for k in ("schedule_enabled", "schedule_minutes", "dirs"):
                 data.pop(k, None)
             _state.update(data)
     except Exception:
@@ -229,26 +240,8 @@ def _norm_root(root):
 
 
 def _cfg_path():
-    """返回 run.py 使用的配置文件路径。若设置了自定义存放位置，生成覆盖配置。"""
-    dirs = _state.get("dirs") or {}
-    custom = {k: v for k, v in dirs.items() if v and str(v).strip()}
-    if not custom:
-        return DEFAULT_CONFIG
-    overrides = {"structure": {}}
-    for label, key in DIR_KEYS.items():
-        val = (dirs.get(label) or "").strip()
-        if not val:
-            continue
-        if key == "logging.log_dir":
-            overrides.setdefault("logging", {})["log_dir"] = val
-        else:
-            overrides["structure"][key] = val
-    try:
-        with open(USER_CONFIG, "w", encoding="utf-8") as f:
-            json.dump(overrides, f, ensure_ascii=False, indent=2)
-        return USER_CONFIG
-    except Exception:
-        return DEFAULT_CONFIG
+    """返回 run.py 使用的配置文件路径（固定使用默认配置）。"""
+    return DEFAULT_CONFIG
 
 
 def _coord_path(name=None):
@@ -483,7 +476,7 @@ def _inbox_breakdown():
 
 
 def _doubao_materials():
-    """豆包提炼实际会扫描的素材清单：统一为「未处理」（仅 .md/.txt）。
+    """豆包提炼实际会扫描的素材清单：统一为「未处理」（所有非隐藏文件，.md/.txt 走文本、其余整文件直发）。
 
     与 doubao_automation._iter_material_sources 保持同源，供「自动匹配」按钮统计。
     """
@@ -498,8 +491,7 @@ def _doubao_materials():
                 continue
             for fn in sorted(os.listdir(d)):
                 p = os.path.join(d, fn)
-                if os.path.isfile(p) and not fn.startswith(".") \
-                        and fn.lower().endswith((".md", ".txt")):
+                if os.path.isfile(p) and not fn.startswith("."):
                     ap = os.path.abspath(p)
                     if ap in seen_paths:
                         continue
@@ -518,14 +510,14 @@ def _doubao_materials():
 
 
 def _inbox_delete(items):
-    """把指定来源的文件移入 <库>/_kb_回收站/（可找回，不做物理删除）。
+    """把指定来源的文件移入 <库>/回收站/（可找回，不做物理删除）。
 
     入参 items 为 [{"name": ..., "source": ...}, ...]；source 缺省按「未处理」处理。
     """
     root = _state.get("root")
     if not root:
         return [], ["知识库未设置"]
-    trash = os.path.join(root, "_kb_回收站")
+    trash = _trash_path()    # 复用路径函数（内部惰性迁移旧目录 _kb_回收站）
     os.makedirs(trash, exist_ok=True)
     src_map = {label: path for label, path in _import_source_dirs()}
     moved, errors = [], []
@@ -559,6 +551,155 @@ def _inbox_delete(items):
 
 
 # ---------------------------------------------------------------------------
+# 回收站管理：列表 / 恢复 / 清空
+# ---------------------------------------------------------------------------
+_trash_mig_lock = threading.Lock()   # 回收站旧目录迁移锁（独立于 _lock，避免与业务串行锁耦合）
+
+def _trash_migrate():
+    """把旧目录 <root>/_kb_回收站 一次性迁移到 <root>/回收站（幂等、并发安全）。
+
+    仅当旧目录存在时执行；文件与子目录整体搬移（若跳过子目录，旧目录删不掉、
+    且子目录会失联）。目标重名时加 _mig_<n> 后缀，不覆盖。迁移完成后删除旧目录，
+    删除失败仅记日志、保留旧目录，下次访问自动重试。
+    """
+    root = _state.get("root")
+    if not root:
+        return
+    old = os.path.join(root, "_kb_回收站")
+    if not os.path.isdir(old):
+        return                            # 幂等：旧目录不存在即无副作用
+    new = os.path.join(root, "回收站")
+    with _trash_mig_lock:
+        if not os.path.isdir(old):        # 二次检查：另一线程已迁移完成
+            return
+        try:
+            os.makedirs(new, exist_ok=True)
+            for fn in sorted(os.listdir(old)):
+                src = os.path.join(old, fn)
+                dst = os.path.join(new, fn)
+                i = 1
+                while os.path.exists(dst):  # 目标重名：_mig_<n> 后缀不覆盖
+                    stem, ext = os.path.splitext(fn)
+                    i += 1
+                    dst = os.path.join(new, "%s_mig_%d%s" % (stem, i, ext))
+                try:
+                    os.replace(src, dst)    # 同 root 下同文件系统，文件/子目录均可整体搬移
+                except Exception:
+                    continue                # 单条目失败不阻断整体迁移
+            try:
+                os.rmdir(old)               # 空目录删除；仍非空（有失败项）则抛 OSError
+            except OSError:
+                _log("回收站旧目录 _kb_回收站 未能删除，请手动处理：%s" % old)
+            else:
+                _log("回收站旧目录已迁移：_kb_回收站 → 回收站")
+        except Exception as e:
+            _log("回收站迁移异常：%s" % e)
+
+
+def _trash_path():
+    """回收站绝对路径（<root>/回收站）；root 未设置时返回空串。
+
+    首次访问时自动把旧目录 _kb_回收站 迁移到 回收站（幂等，见 _trash_migrate）。
+    """
+    root = _state.get("root")
+    if not root:
+        return ""
+    _trash_migrate()
+    return os.path.join(root, "回收站")
+
+
+_TRASH_PREFIX_RE = re.compile(r"^(\d{8}_\d{6})_(.+)$")
+
+
+def _trash_restore_name(fn):
+    """从回收站文件名还原原始文件名。
+
+    回收站文件名有两种后缀来源，都要剥离：
+    - 删除时重名：_inbox_delete 生成 `YYYYMMDD_HHMMSS_<原名>_<N>`（_N 在扩展名后，如 aaa.md_2）
+    - 恢复时重名：_trash_restore 生成 `<原名去掉扩展名>_<N>.<ext>`（_N 在扩展名前，如 aaa_2.md）
+    """
+    m = _TRASH_PREFIX_RE.match(fn)
+    rest = m.group(2) if m else fn
+    m2 = re.match(r"^(.*)_(\d+)$", rest)
+    return m2.group(1) if m2 else rest
+
+
+def _trash_list():
+    """回收站内文件列表 [{name, size, mtime}]；目录不存在或为空时返回 []。"""
+    trash = _trash_path()
+    if not trash or not os.path.isdir(trash):
+        return []
+    items = []
+    try:
+        for fn in sorted(os.listdir(trash)):
+            p = os.path.join(trash, fn)
+            if os.path.isfile(p):
+                st = os.stat(p)
+                items.append({
+                    "name": fn,
+                    "size": st.st_size,
+                    "mtime": datetime.datetime.fromtimestamp(
+                        st.st_mtime).strftime("%Y-%m-%d %H:%M"),
+                })
+    except Exception:
+        pass
+    return items
+
+
+def _trash_restore(items):
+    """把回收站中指定文件移回 01未处理，还原原名；目标重名时加 _2/_3 后缀不覆盖。"""
+    root = _state.get("root")
+    if not root:
+        return [], ["知识库未设置"]
+    trash = _trash_path()
+    inbox = _inbox_path()
+    if not trash or not os.path.isdir(trash):
+        return [], ["回收站为空或不存在"]
+    restored, errors = [], []
+    for it in (items or []):
+        name = str(it.get("name") if isinstance(it, dict) else it or "")
+        base = os.path.basename(name)            # 防路径穿越：只取文件名
+        if not base or base.startswith("."):
+            errors.append("%s（非法文件名）" % base)
+            continue
+        src = os.path.join(trash, base)
+        if not os.path.isfile(src):
+            errors.append("%s（不存在）" % base)
+            continue
+        orig = _trash_restore_name(base)         # 还原原名
+        dst = os.path.join(inbox, orig)
+        if os.path.exists(dst):                  # 目标重名：_2/_3 唯一后缀
+            stem, ext = os.path.splitext(orig)
+            i = 2
+            while os.path.exists(os.path.join(inbox, "%s_%d%s" % (stem, i, ext))):
+                i += 1
+            dst = os.path.join(inbox, "%s_%d%s" % (stem, i, ext))
+        try:
+            os.replace(src, dst)
+            restored.append(os.path.basename(dst))
+        except Exception as e:
+            errors.append("%s（%s）" % (base, e))
+    return restored, errors
+
+
+def _trash_clear():
+    """物理删除回收站内全部文件（子目录跳过），返回清除的文件数。"""
+    trash = _trash_path()
+    if not trash or not os.path.isdir(trash):
+        return 0
+    cleared = 0
+    for fn in sorted(os.listdir(trash)):
+        p = os.path.join(trash, fn)
+        try:
+            if os.path.isfile(p):
+                os.remove(p)
+                cleared += 1
+        except Exception:
+            continue
+    return cleared
+
+
+# ---------------------------------------------------------------------------
 # 调试模式：快照 + 复位
 # ---------------------------------------------------------------------------
 def _debug_dirs():
@@ -575,19 +716,17 @@ def _debug_dirs():
     inbox = os.path.join(root, cfg.get("import", {}).get("inbox", "01未处理"))
     done = os.path.join(root, structure.get("已处理", "02已处理"))
     notes = os.path.join(root, structure.get("B_知识提炼", "03知识提炼"))
-    moc = os.path.join(root, structure.get("C_MOC", "04知识聚合/MOC"))
-    log_dir = (_state.get("dirs") or {}).get("报告") or \
-        cfg.get("logging", {}).get("log_dir", "处理日志")
+    log_dir = cfg.get("logging", {}).get("log_dir", "处理日志")
     logs = os.path.join(root, log_dir)
-    return inbox, done, notes, moc, logs
+    return inbox, done, notes, logs
 
 
 def _debug_snapshot():
     """记录 5 个目录当前 basename 集合（目录不存在记空列表）。"""
-    inbox, done, notes, moc, logs = _debug_dirs()
+    inbox, done, notes, logs = _debug_dirs()
     snap = {}
     for key, d in (("inbox", inbox), ("done", done), ("notes", notes),
-                   ("moc", moc), ("logs", logs)):
+                   ("logs", logs)):
         snap[key] = sorted(os.listdir(d)) if d and os.path.isdir(d) else []
     return snap
 
@@ -604,20 +743,20 @@ def _strip_hmss(fn, candidates):
 def _debug_reset():
     """按快照撤销调试期间的全部操作（在后台线程中执行）。
 
-    ① 删除 03知识提炼 / 04知识聚合/MOC / 处理日志 中调试期间新生成的文件；
+    ① 删除 03知识提炼 / 处理日志 中调试期间新生成的文件；
     ② 把调试期间从 01未处理 移到 02已处理 的素材移回（恢复原名，重名加唯一后缀不覆盖）；
     ③ 清理 .kb_registry.json 中已删除笔记的注册项。
     复位后保持调试模式开启、快照不变，可反复运行再复位。
     """
-    inbox, done, notes, moc, logs = _debug_dirs()
+    inbox, done, notes, logs = _debug_dirs()
     snap = (_state.get("debug") or {}).get("snapshot") or {}
     root = _state.get("root")
     deleted_notes = []
-    removed = {"notes": 0, "moc": 0, "logs": 0}
+    removed = {"notes": 0, "logs": 0}
     errors = []
 
-    # ① 删除调试期间新生成的文件（笔记 / MOC / 日志报告）
-    for d, key in ((notes, "notes"), (moc, "moc"), (logs, "logs")):
+    # ① 删除调试期间新生成的文件（笔记 / 日志报告）
+    for d, key in ((notes, "notes"), (logs, "logs")):
         if not d or not os.path.isdir(d):
             continue
         base = set(snap.get(key) or [])
@@ -669,8 +808,8 @@ def _debug_reset():
     except Exception as e:
         errors.append("registry 清理：%s" % e)
 
-    _log("调试复位完成：删除笔记 %d、MOC %d、日志/报告 %d，移回素材 %d%s" % (
-        removed["notes"], removed["moc"], removed["logs"], moved,
+    _log("调试复位完成：删除笔记 %d、日志/报告 %d，移回素材 %d%s" % (
+        removed["notes"], removed["logs"], moved,
         "；告警：%s" % "；".join(errors[:5]) if errors else ""))
 
 
@@ -700,6 +839,8 @@ class Handler(BaseHTTPRequestHandler):
             self._send_json({"ok": True, "summary": _latest_report_summary()})
         elif path == "/api/inbox":
             self._send_json({"ok": True, "items": _inbox_list()})
+        elif path == "/api/trash":
+            self._send_json({"ok": True, "items": _trash_list()})
         elif path == "/api/doubao/status":
             self._send_json({"ok": True, "coords": _coords,
                              "coord_file": _state.get("coord_file") or DEFAULT_COORD_FILE,
@@ -731,12 +872,13 @@ class Handler(BaseHTTPRequestHandler):
             "vault_exists": bool(root) and os.path.isdir(root),
             "inbox_count": len(_inbox_list()) if root else 0,
             "inbox_breakdown": _inbox_breakdown() if root else {},
-            "dirs": _state.get("dirs") or {"笔记": "", "报告": "", "附件": ""},
             "coord_file": _state.get("coord_file") or DEFAULT_COORD_FILE,
             "coord_files": _list_coord_files(),
             "coords": _coords,
             "coord_waiting": _coord_waiting.get("which", ""),
             "doubao_running": _doubao_running["flag"],
+            "doubao_end": {"state": _doubao_end["state"],
+                           "msg": _doubao_end["msg"]},
             "prompts": _prompts_config(),
             "gen_spec": GEN_SPEC,
             "debug": {
@@ -771,16 +913,6 @@ class Handler(BaseHTTPRequestHandler):
         if path in ("/api/init", "/api/open",
                     "/api/open_path", "/api/open_report", "/api/exit"):
             self._action(path, body)
-        elif path == "/api/dirs":
-            dirs = body.get("dirs") or {}
-            for label in DIR_KEYS:
-                if label in dirs:
-                    _state["dirs"][label] = str(dirs.get(label) or "").strip()
-            save_state()
-            _log("自定义存放位置已保存：%s" % json.dumps(
-                _state["dirs"], ensure_ascii=False))
-            self._send_json({"ok": True, "status": self._status()})
-
         elif path == "/api/prompts":
             send = str(body.get("send_format") or "").strip()
             _state["prompts"] = {"send_format": send}
@@ -800,7 +932,7 @@ class Handler(BaseHTTPRequestHandler):
             else:
                 dbg["enabled"] = False
                 dbg["snapshot"] = {"inbox": [], "done": [], "notes": [],
-                                   "moc": [], "logs": []}
+                                   "logs": []}
                 _log("调试模式已关闭（快照已清空，已生成文件保留）")
             save_state()
             self._send_json({"ok": True, "status": self._status()})
@@ -966,6 +1098,22 @@ class Handler(BaseHTTPRequestHandler):
             self._send_json({"ok": True, "moved": moved, "errors": errors,
                              "items": _inbox_list()})
 
+        elif path == "/api/trash/restore":
+            restored, errors = _trash_restore(body.get("items") or [])
+            _log("恢复回收站文件：成功 %d 个%s" % (
+                len(restored),
+                "（%s）" % "、".join(restored) if restored else ""))
+            if errors:
+                _log("恢复失败：%s" % "；".join(errors))
+            self._send_json({"ok": True, "restored": restored, "errors": errors,
+                             "items": _trash_list()})
+
+        elif path == "/api/trash/clear":
+            cleared = _trash_clear()
+            _log("已清空回收站：%d 个文件" % cleared)
+            self._send_json({"ok": True, "cleared": cleared,
+                             "items": _trash_list()})
+
         else:
             startup_log("404 POST " + self.path)
             self._send_json({"ok": False, "error": "未知接口: POST " + self.path},
@@ -1055,6 +1203,7 @@ class Handler(BaseHTTPRequestHandler):
         self._send_json({"ok": True, "status": self._status()})
 
         def _worker():
+            end_state, end_msg = "ok", "豆包整理已完成，素材已提炼为 B 层笔记"
             try:
                 from obsidian_kb import (config as config_mod,
                                          doubao_automation,
@@ -1066,8 +1215,7 @@ class Handler(BaseHTTPRequestHandler):
                 doubao_automation.bring_doubao_to_front(log_fn=_log)
                 cfg = config_mod.load_config(_cfg_path(), cwd=BASE_DIR)
                 root = _state["root"]
-                log_dir = (_state.get("dirs") or {}).get("报告") or \
-                    cfg["logging"].get("log_dir", "处理日志")
+                log_dir = cfg["logging"].get("log_dir", "处理日志")
                 logger, report = logger_mod.setup_logging(log_dir, root)
                 logger.addHandler(_GuiLogHandler())
                 reg = registry.Registry(root)
@@ -1077,11 +1225,10 @@ class Handler(BaseHTTPRequestHandler):
                     wait_seconds=wait, max_items=max_items,
                     stop_event=_doubao_stop,
                     send_format=prompts.get("send_format") or None)
-                # 全部完成后运行链接引擎 + MOC/索引（对齐模板流程；调试模式下跳过，便于复位撤销）
+                # 全部完成后运行链接引擎 + 索引笔记（对齐模板流程；调试模式下跳过，便于复位撤销）
                 if not (_state.get("debug") or {}).get("enabled") \
                         and not _doubao_stop.is_set():
                     linker.run_linking(cfg, root, reg, logger, report)
-                    linker.generate_mocs(cfg, root, logger, report)
                     linker.generate_indexes(cfg, root, logger, report)
                     reg.save()
                     started = datetime.datetime.now()
@@ -1089,13 +1236,24 @@ class Handler(BaseHTTPRequestHandler):
                         report, root, log_dir, started, 0.0)
                     _log("处理报告：%s" % path)
             except Exception as e:
+                end_state, end_msg = "error", "豆包整理出错：%s" % e
                 _log("豆包整理出错：%s" % e)
                 startup_log("DOUBAO ERROR " + traceback.format_exc())
+            else:
+                if _doubao_stop.is_set():
+                    end_state, end_msg = "stopped", "豆包整理已被手动停止"
             finally:
                 _doubao_running["flag"] = False
                 with _lock:
                     _busy.update(flag=False, action="")
-                _log("———————— 完成：豆包整理 ————————")
+                _doubao_end["state"] = end_state
+                _doubao_end["msg"] = end_msg
+                if end_state == "ok":
+                    _log("———————— 完成：豆包整理（正常跑完）————————")
+                elif end_state == "error":
+                    _log("———————— 完成：豆包整理（出错中断）————————")
+                else:
+                    _log("———————— 完成：豆包整理（手动停止）————————")
 
         threading.Thread(target=_worker, daemon=True).start()
 

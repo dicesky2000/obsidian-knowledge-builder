@@ -2,7 +2,7 @@
 """定时自动同步：两种运行模式。
 
 - watch（内置循环）：程序常驻后台，按 scheduler.interval_minutes 间隔轮询执行
-  sync（导入 + 打标 + 双链 + MOC + 报告）；
+  sync（导入 + 打标 + 双链 + 索引 + 报告）；
 - schedule（Windows 计划任务）：生成一个 run_sync.bat（chcp 65001 + 调用 sync），
   并通过 schtasks 注册每日定时任务；--uninstall 可卸载。
 """

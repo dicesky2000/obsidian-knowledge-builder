@@ -5,3 +5,4 @@ PyMuPDF>=1.23        # PDF 正文提取（pdf_mode=extract 时使用）
 # 可选依赖
 python-docx>=0.8     # Word(.docx) 正文提取，不装则 docx 仅归档
 pypdf>=3.0           # PDF 提取回退方案（没有 PyMuPDF 时启用）
+pywin32>=306         # 老式 Word(.doc) 正文提取（需本机安装 Word/WPS，不装则 .doc 跳过）
