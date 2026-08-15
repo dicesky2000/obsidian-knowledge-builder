@@ -290,8 +290,12 @@ def _is_process_elevated(pid: int):
         kernel32.CloseHandle(h)
 
 
-def find_doubao_windows():
-    """枚举顶层窗口，找出豆包客户端窗口（标题含'豆包'或进程为 doubao/bytebot）。"""
+def find_doubao_windows(mode=None):
+    """枚举顶层窗口，找出豆包窗口。
+
+    mode=None / "desktop"：标题含'豆包'或进程为 doubao/bytebot/豆包 均匹配（桌面客户端）。
+    mode="web"：仅匹配标题含'豆包'且进程不是桌面客户端的窗口（即浏览器里的网页版）。
+    """
     results = []
     PROC = ctypes.WINFUNCTYPE(wintypes.BOOL, wintypes.HWND, wintypes.LPARAM)
 
@@ -307,31 +311,47 @@ def find_doubao_windows():
         pid = wintypes.DWORD()
         user32.GetWindowThreadProcessId(hwnd, ctypes.byref(pid))
         name = _process_name(pid.value)
-        if ("豆包" in title or "doubao" in title.lower()
-                or "doubao" in name or "bytebot" in name
-                or "豆包" in name):
-            results.append({"hwnd": hwnd, "title": title,
-                            "process": name, "pid": pid.value})
+        is_db_title = ("豆包" in title or "doubao" in title.lower())
+        is_db_client = ("doubao" in name or "bytebot" in name or "豆包" in name)
+        if mode == "web":
+            # 网页版：标题含豆包、且进程不是桌面客户端（排除 doubao/bytebot 窗口）
+            if is_db_title and not is_db_client:
+                results.append({"hwnd": hwnd, "title": title,
+                                "process": name, "pid": pid.value})
+        else:
+            # 桌面版/默认：标题或进程命中
+            if is_db_title or is_db_client:
+                results.append({"hwnd": hwnd, "title": title,
+                                "process": name, "pid": pid.value})
         return True
 
     user32.EnumWindows(PROC(_cb), 0)
     return results
 
 
-def bring_doubao_to_front(log_fn=None, maximize: bool = True) -> bool:
-    """把豆包客户端窗口切到前台并最大化；找不到返回 False。"""
+def bring_doubao_to_front(log_fn=None, maximize: bool = True,
+                          mode=None) -> bool:
+    """把豆包窗口切到前台并最大化；找不到返回 False。
+
+    mode 传 "web" 时按网页版窗口匹配（浏览器），否则按桌面客户端匹配。
+    """
     def _log(msg):
         if log_fn:
             log_fn(msg)
 
-    wins = find_doubao_windows()
+    label = "网页版豆包窗口" if mode == "web" else "豆包客户端"
+    wins = find_doubao_windows(mode=mode)
     if not wins:
-        _log("未找到豆包窗口（标题含「豆包」或进程 doubao/bytebot）。"
-             "请先打开豆包电脑客户端")
+        if mode == "web":
+            _log("未找到豆包网页版窗口（浏览器里标题含「豆包」）。"
+                 "请确认浏览器已打开豆包网页并登录")
+        else:
+            _log("未找到豆包窗口（标题含「豆包」或进程 doubao/bytebot）。"
+                 "请先打开豆包电脑客户端")
         return False
     win = wins[0]
     hwnd = win["hwnd"]
-    _log("找到豆包窗口：%s（进程 %s）" % (win["title"], win["process"] or "未知"))
+    _log("找到%s窗口：%s（进程 %s）" % (label, win["title"], win["process"] or "未知"))
 
     # Alt 键技巧：绕过 Windows 前台切换限制
     user32.keybd_event(VK_MENU, 0, 0, 0)
@@ -345,7 +365,7 @@ def bring_doubao_to_front(log_fn=None, maximize: bool = True) -> bool:
     user32.keybd_event(VK_MENU, 0, 0, 0)
     user32.SetForegroundWindow(hwnd)
     user32.keybd_event(VK_MENU, 0, KEYEVENTF_KEYUP, 0)
-    _log("豆包客户端已切到前台%s" % ("并最大化" if maximize else ""))
+    _log("%s已切到前台%s" % (label, "并最大化" if maximize else ""))
     return True
 
 

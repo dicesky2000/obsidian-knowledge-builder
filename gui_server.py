@@ -47,6 +47,10 @@ INDEX_FILE = os.path.join(BASE_DIR, "gui_index.html")
 DEFAULT_CONFIG = os.path.join(BASE_DIR, "kbconfig.yaml")
 STATE_FILE = os.path.join(BASE_DIR, "gui_state.json")
 DEFAULT_COORD_FILE = "豆包坐标.json"
+# 豆包启动途径：网页版（默认，自动打开浏览器）/ 桌面版(exe，用户自行打开客户端)
+DOUBAO_MODES = ("web", "desktop")
+DOUBAO_WEB_URL = "https://www.doubao.com/chat/?channel=RSX4N"
+DOUBAO_MODE_LABEL = {"web": "网页版", "desktop": "桌面版(exe)"}
 STARTUP_LOG = os.path.join(BASE_DIR, "gui_startup.log")
 URL_FILE = os.path.join(BASE_DIR, "gui_url.txt")
 PORT = 8765
@@ -174,6 +178,7 @@ _lock = threading.Lock()                 # 操作串行锁
 _state = {
     "root": "",                          # 知识库位置
     "coord_file": DEFAULT_COORD_FILE,    # 当前豆包坐标文件名（可自定义，支持多套）
+    "doubao_mode": "web",                # 豆包启动途径：web 网页版 / desktop 桌面版(exe)
     "prompts": {},                       # 豆包提示词配置 {"send_format"}
     "debug": {"enabled": False, "snapshot": {"inbox": [], "done": [], "notes": [], "logs": []}},
 }
@@ -181,7 +186,7 @@ _log_seq = itertools.count(1)
 _log_lines = deque(maxlen=4000)          # 界面日志缓冲
 _busy = {"flag": False, "action": ""}    # 是否有任务在运行
 _exiting = {"flag": False}
-_coords = {}                             # 豆包坐标 {'输入框':{'x','y'},...}
+_coords = {"desktop": {}, "web": {}}     # 豆包坐标（按启动途径分套，与坐标文件同构）
 _coord_waiting = {"which": ""}           # 正在等待用户记录哪个坐标
 _doubao_stop = threading.Event()         # 豆包整理停止信号
 _doubao_running = {"flag": False}
@@ -224,6 +229,8 @@ def load_state():
             _state.update(data)
     except Exception:
         pass
+    # 旧版 gui_state.json 无 doubao_mode → 自动补默认（网页版）
+    _state.setdefault("doubao_mode", "web")
 
 
 def save_state():
@@ -263,20 +270,75 @@ def _safe_coord_name(name):
     return name
 
 
+# ---------------------------------------------------------------------------
+# 豆包坐标：双途径（网页版/桌面版）分套处理
+# ---------------------------------------------------------------------------
+_COORD_KEYS = ("输入框", "下翻箭头", "复制按钮")
+
+
+def _is_old_coord_format(data):
+    """旧格式（平铺坐标名→{x,y}）判定：顶层存在任一坐标名即 True。"""
+    return isinstance(data, dict) and any(k in data for k in _COORD_KEYS)
+
+
+def _extract_coord_set(obj):
+    """过滤出含 x/y 的坐标项，返回平铺 dict。"""
+    if not isinstance(obj, dict):
+        return {}
+    return {k: v for k, v in obj.items()
+            if isinstance(v, dict) and "x" in v and "y" in v}
+
+
+def _parse_coord_data(data):
+    """统一解析坐标数据 → 嵌套结构 {"desktop": {...}, "web": {...}}。
+
+    旧格式（平铺坐标名）自动归为 desktop；新格式缺套补空 {}；非法项过滤。
+    """
+    if _is_old_coord_format(data):
+        return {"desktop": _extract_coord_set(data), "web": {}}
+    out = {}
+    for mode in DOUBAO_MODES:
+        out[mode] = _extract_coord_set(data.get(mode)) if isinstance(data, dict) else {}
+    return out
+
+
+def _active_mode():
+    """返回当前合法启动途径，非法值回退 'web'。"""
+    m = _state.get("doubao_mode")
+    return m if m in DOUBAO_MODES else "web"
+
+
+def _active_coords():
+    """返回当前途径的坐标套（不存在则补空）。"""
+    return _coords.setdefault(_active_mode(), {})
+
+
+def _coord_counts():
+    """返回各途径坐标数量，如 {"desktop": 3, "web": 0}。"""
+    return {m: len(_extract_coord_set(_coords.get(m))) for m in DOUBAO_MODES}
+
+
 def _load_coords(name=None):
-    """加载坐标文件到内存；name 缺省用当前 coord_file。"""
+    """加载坐标文件到内存；name 缺省用当前 coord_file。
+
+    文件为旧平铺格式时自动迁移为 {"desktop": 原内容, "web": {}} 并写回一次（幂等）。
+    """
     global _coords
-    _coords = {}
+    _coords = {"desktop": {}, "web": {}}
     p = _coord_path(name)
     if os.path.isfile(p):
         try:
             with open(p, "r", encoding="utf-8-sig") as f:
                 data = json.load(f)
-            if isinstance(data, dict):
-                _coords = {k: v for k, v in data.items()
-                           if isinstance(v, dict) and "x" in v and "y" in v}
+            parsed = _parse_coord_data(data)
+            if _is_old_coord_format(data):
+                # 旧格式 → 归 desktop 并立即写回迁移（幂等，二次加载走新格式）
+                _coords = parsed
+                _save_coords()
+            else:
+                _coords = parsed
         except Exception:
-            _coords = {}
+            _coords = {"desktop": {}, "web": {}}
     if name:
         _state["coord_file"] = os.path.basename(name) or DEFAULT_COORD_FILE
         save_state()
@@ -310,6 +372,72 @@ def _list_coord_files():
     if current not in out:
         out.append(current)
     return out
+
+
+def _wait_doubao_window(mode, timeout=30, log_fn=None):
+    """按途径轮询查找豆包窗口（网页版/桌面版），命中即置前并最大化。
+
+    返回 True=已找到并置前；False=超时未找到。
+    """
+    from obsidian_kb import doubao_automation
+    t0 = time.time()
+    while time.time() - t0 < timeout:
+        if doubao_automation.find_doubao_windows(mode=mode):
+            return doubao_automation.bring_doubao_to_front(
+                log_fn=log_fn, mode=mode)
+        time.sleep(1)
+    return False
+
+
+def _find_browser_exe():
+    """探测真实浏览器 exe（Edge > Chrome > Firefox），保证打开 URL 不经过系统默认 URL 关联。
+
+    系统默认 URL 关联若被劫持/损坏（如 .html 关联到编辑器），webbrowser.open
+    会打开无关应用；显式指定浏览器 exe 可彻底避免。找不到返回 None。
+    """
+    pf = os.environ.get("ProgramFiles", r"C:\Program Files")
+    pf86 = os.environ.get("ProgramFiles(x86)", r"C:\Program Files (x86)")
+    lpd = os.environ.get("LOCALAPPDATA", "")
+    candidates = [
+        os.path.join(pf86, "Microsoft", "Edge", "Application", "msedge.exe"),
+        os.path.join(pf, "Microsoft", "Edge", "Application", "msedge.exe"),
+        os.path.join(pf, "Google", "Chrome", "Application", "chrome.exe"),
+    ]
+    if lpd:
+        candidates.append(os.path.join(lpd, "Google", "Chrome", "Application", "chrome.exe"))
+    candidates.append(os.path.join(pf, "Mozilla Firefox", "firefox.exe"))
+    for p in candidates:
+        if p and os.path.isfile(p):
+            return p
+    return None
+
+
+def _open_doubao_web(log_fn=None):
+    """打开豆包网页：优先用真实浏览器 exe（不经系统默认 URL 关联，避免误开无关应用）。
+
+    找不到已知浏览器时回退系统默认方式（webbrowser.open）。返回 True=已用浏览器打开。
+    """
+    def _log(m):
+        if log_fn:
+            log_fn(m)
+
+    exe = _find_browser_exe()
+    if exe:
+        try:
+            flags = subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0
+            subprocess.Popen([exe, DOUBAO_WEB_URL], creationflags=flags)
+            _log("已用浏览器打开豆包网页：%s" % os.path.basename(exe))
+            return True
+        except Exception as e:
+            _log("启动浏览器失败（%s），回退系统默认方式……" % e)
+    try:
+        import webbrowser
+        webbrowser.open(DOUBAO_WEB_URL)
+        _log("已尝试用系统默认方式打开豆包网页（未找到已知浏览器 exe）")
+        return False
+    except Exception as e:
+        _log("打开豆包网页失败：%s" % e)
+        return False
 
 
 def _run_py(args, on_line=None):
@@ -437,6 +565,25 @@ def _inbox_path():
     if not os.path.isdir(inbox):
         os.makedirs(inbox, exist_ok=True)
     return inbox
+
+
+def _unique_inbox_dst(inbox, base):
+    """目标路径冲突时自动重命名，避免覆盖已有文件。
+
+    策略：已存在同名 → `名字_YYYYMMDDHHMMSS.扩展名`，仍冲突则追加 _2/_3 递增。
+    返回 (绝对路径, 最终文件名)；无冲突时最终文件名=原名。
+    """
+    dst = os.path.join(inbox, base)
+    if not os.path.exists(dst):
+        return dst, base
+    stem, ext = os.path.splitext(base)
+    stamp = datetime.datetime.now().strftime("%Y%m%d%H%M%S")
+    cand = "%s_%s%s" % (stem, stamp, ext)
+    i = 2
+    while os.path.exists(os.path.join(inbox, cand)):
+        cand = "%s_%s_%d%s" % (stem, stamp, i, ext)
+        i += 1
+    return os.path.join(inbox, cand), cand
 
 
 def _inbox_list():
@@ -842,11 +989,14 @@ class Handler(BaseHTTPRequestHandler):
         elif path == "/api/trash":
             self._send_json({"ok": True, "items": _trash_list()})
         elif path == "/api/doubao/status":
-            self._send_json({"ok": True, "coords": _coords,
+            self._send_json({"ok": True, "coords": _active_coords(),
                              "coord_file": _state.get("coord_file") or DEFAULT_COORD_FILE,
                              "coord_files": _list_coord_files(),
                              "coord_waiting": _coord_waiting.get("which", ""),
-                             "running": _doubao_running["flag"]})
+                             "running": _doubao_running["flag"],
+                             "doubao_mode": _active_mode(),
+                             "doubao_modes": list(DOUBAO_MODES),
+                             "coord_counts": _coord_counts()})
         elif path == "/api/doubao/materials":
             # 豆包实际会扫描的素材（统一为「未处理」），供「自动匹配」统计
             self._send_json({"ok": True, "items": _doubao_materials()})
@@ -874,8 +1024,11 @@ class Handler(BaseHTTPRequestHandler):
             "inbox_breakdown": _inbox_breakdown() if root else {},
             "coord_file": _state.get("coord_file") or DEFAULT_COORD_FILE,
             "coord_files": _list_coord_files(),
-            "coords": _coords,
+            "coords": _active_coords(),
             "coord_waiting": _coord_waiting.get("which", ""),
+            "doubao_mode": _active_mode(),
+            "doubao_modes": list(DOUBAO_MODES),
+            "coord_counts": _coord_counts(),
             "doubao_running": _doubao_running["flag"],
             "doubao_end": {"state": _doubao_end["state"],
                            "msg": _doubao_end["msg"]},
@@ -967,9 +1120,11 @@ class Handler(BaseHTTPRequestHandler):
             if which not in ("输入框", "下翻箭头", "复制按钮"):
                 self._send_json({"ok": False, "error": "坐标名称无效"})
                 return
+            mode = _active_mode()
             _coord_cancel.clear()
             _coord_waiting["which"] = which
-            _log("请把鼠标移到豆包【%s】位置，按 F6 确认（按 Esc 取消）" % which)
+            _log("请把鼠标移到豆包【%s】（%s）位置，按 F6 确认（按 Esc 取消）"
+                 % (which, DOUBAO_MODE_LABEL[mode]))
             self._send_json({"ok": True, "status": self._status()})
 
             def _worker():
@@ -983,9 +1138,10 @@ class Handler(BaseHTTPRequestHandler):
                     which, log_fn=_log, stop_event=_coord_cancel)
                 _coord_waiting["which"] = ""
                 if pt != (0, 0):
-                    _coords[which] = {"x": pt[0], "y": pt[1]}
+                    _active_coords()[which] = {"x": pt[0], "y": pt[1]}
                     _save_coords()
-                    _log("豆包坐标已保存：%s(%d,%d)" % (which, pt[0], pt[1]))
+                    _log("豆包坐标已保存：%s【%s】(%d,%d)"
+                         % (DOUBAO_MODE_LABEL[mode], which, pt[0], pt[1]))
 
             threading.Thread(target=_worker, daemon=True).start()
 
@@ -994,9 +1150,11 @@ class Handler(BaseHTTPRequestHandler):
             self._send_json({"ok": True})
 
         elif path == "/api/coord/clear":
-            _coords.clear()
+            mode = _active_mode()
+            _active_coords().clear()
             _save_coords()
-            _log("豆包坐标已清空（%s）" % _state.get("coord_file"))
+            _log("豆包坐标已清空（%s %s）"
+                 % (DOUBAO_MODE_LABEL[mode], _state.get("coord_file")))
             self._send_json({"ok": True, "status": self._status()})
 
         elif path == "/api/coord/set_file":
@@ -1005,19 +1163,19 @@ class Handler(BaseHTTPRequestHandler):
                 self._send_json({"ok": False, "error": "请填写坐标文件名称"})
                 return
             _load_coords(name + ".json")
-            _log("已切换到坐标文件：%s.json（共 %d 个坐标）" % (
-                name, len(_coords)))
+            _log("已切换到坐标文件：%s.json（%s 共 %d 个坐标）" % (
+                name, DOUBAO_MODE_LABEL[_active_mode()], len(_active_coords())))
             self._send_json({"ok": True, "status": self._status()})
 
         elif path == "/api/coord/export":
             name = _safe_coord_name(body.get("name", "")) or \
                 _state.get("coord_file", DEFAULT_COORD_FILE)[:-5]
-            if len(_coords) < 3:
+            if len(_active_coords()) < 3:
                 self._send_json({"ok": False,
                                  "error": "还没有完整的三个坐标，请先依次记录"})
                 return
             _save_coords(name + ".json")
-            _log("已生成坐标文件：%s.json（输入框/下翻/复制）" % name)
+            _log("已生成坐标文件：%s.json（含网页版/桌面版两套坐标）" % name)
             self._send_json({"ok": True, "file": name + ".json",
                              "status": self._status()})
 
@@ -1035,16 +1193,18 @@ class Handler(BaseHTTPRequestHandler):
             if not isinstance(data, dict):
                 self._send_json({"ok": False, "error": "坐标文件格式不正确"})
                 return
-            valid = {k: v for k, v in data.items()
-                     if isinstance(v, dict) and "x" in v and "y" in v}
-            if not valid:
+            parsed = _parse_coord_data(data)
+            if not any(parsed.values()):
                 self._send_json({"ok": False,
                                  "error": "文件中没有有效坐标（需要 x/y 字段）"})
                 return
             _coords.clear()
-            _coords.update(valid)
+            _coords.update(parsed)
             _save_coords(name + ".json")
-            _log("已导入坐标文件：%s.json（%d 个坐标）" % (name, len(valid)))
+            counts = _coord_counts()
+            _log("已导入坐标文件：%s.json（%s）" % (
+                name, " / ".join("%s %d 个" % (DOUBAO_MODE_LABEL[m], n)
+                                 for m, n in counts.items())))
             self._send_json({"ok": True, "file": name + ".json",
                              "status": self._status()})
 
@@ -1060,6 +1220,17 @@ class Handler(BaseHTTPRequestHandler):
             # 豆包实际会扫描的素材（统一为「未处理」），供「自动匹配」统计
             self._send_json({"ok": True, "items": _doubao_materials()})
 
+        elif path == "/api/doubao/mode":
+            m = body.get("mode", "")
+            if m not in DOUBAO_MODES:
+                self._send_json({"ok": False, "error": "启动途径无效"})
+                return
+            _state["doubao_mode"] = m
+            save_state()
+            _log("已切换豆包启动途径：%s（坐标文件：%s）"
+                 % (DOUBAO_MODE_LABEL[m], _state.get("coord_file")))
+            self._send_json({"ok": True, "status": self._status()})
+
         elif path == "/api/doubao/test":
             dry = bool(body.get("dry"))
             _log("正在执行豆包自动化诊断……")
@@ -1069,7 +1240,7 @@ class Handler(BaseHTTPRequestHandler):
                 try:
                     from obsidian_kb import doubao_automation
                     doubao_automation.diagnostic(log_fn=_log, dry_run=dry,
-                                                 coords=_coords)
+                                                 coords=_active_coords())
                 except Exception as e:
                     _log("诊断失败：%s" % e)
 
@@ -1175,10 +1346,12 @@ class Handler(BaseHTTPRequestHandler):
         if not _state["root"]:
             self._send_json({"ok": False, "error": "请先填写知识库位置"})
             return
-        missing = [k for k in ("输入框", "下翻箭头", "复制按钮") if k not in _coords]
+        missing = [k for k in ("输入框", "下翻箭头", "复制按钮") if k not in _active_coords()]
         if missing:
             self._send_json({"ok": False,
-                             "error": "请先记录豆包坐标：%s" % "、".join(missing)})
+                             "error": "请先记录豆包坐标（%s）：%s"
+                             % (DOUBAO_MODE_LABEL[_active_mode()],
+                                "、".join(missing))})
             return
         with _lock:
             if _busy["flag"]:
@@ -1210,9 +1383,19 @@ class Handler(BaseHTTPRequestHandler):
                                          linker,
                                          logger as logger_mod,
                                          registry)
-                # 开始后约 2 秒，自动把豆包客户端切到前台并最大化
-                time.sleep(2)
-                doubao_automation.bring_doubao_to_front(log_fn=_log)
+                # 按启动途径把豆包切到前台并最大化：
+                # 网页版 → 用真实浏览器打开豆包网页（不经系统默认关联，避免误开无关应用）
+                # 桌面版 → 用户已自行打开客户端
+                mode = _active_mode()
+                if mode == "web":
+                    _log("正在打开豆包网页版：%s" % DOUBAO_WEB_URL)
+                    _open_doubao_web(log_fn=_log)
+                    if not _wait_doubao_window("web", timeout=30, log_fn=_log):
+                        _log("未检测到豆包网页版窗口（浏览器加载慢？），继续尝试……")
+                else:
+                    time.sleep(2)
+                    doubao_automation.bring_doubao_to_front(
+                        log_fn=_log, mode="desktop")
                 cfg = config_mod.load_config(_cfg_path(), cwd=BASE_DIR)
                 root = _state["root"]
                 log_dir = cfg["logging"].get("log_dir", "处理日志")
@@ -1221,7 +1404,7 @@ class Handler(BaseHTTPRequestHandler):
                 reg = registry.Registry(root)
                 prompts = _state.get("prompts") or {}
                 doubao_automation.refine_loop(
-                    cfg, root, _coords, reg, logger, report,
+                    cfg, root, _active_coords(), reg, logger, report,
                     wait_seconds=wait, max_items=max_items,
                     stop_event=_doubao_stop,
                     send_format=prompts.get("send_format") or None)
@@ -1258,7 +1441,11 @@ class Handler(BaseHTTPRequestHandler):
         threading.Thread(target=_worker, daemon=True).start()
 
     def _handle_upload(self, body):
-        """接收前端选中的文件（base64），写入 <库>/未处理/。"""
+        """接收前端选中的文件（base64），写入 <库>/未处理/。
+
+        同名文件自动重命名（名字_时间戳.扩展名，不覆盖已有文件）；
+        返回 saved（最终文件名）与 renamed（原名→新名映射），供前端反馈。
+        """
         files = body.get("files") or []
         if not files:
             self._send_json({"ok": False, "error": "没有收到文件"})
@@ -1267,7 +1454,7 @@ class Handler(BaseHTTPRequestHandler):
             self._send_json({"ok": False, "error": "请先填写知识库位置"})
             return
         inbox = _inbox_path()
-        saved, errors = [], []
+        saved, errors, renamed = [], [], []
         for f in files:
             name = (f.get("name") or "").replace("\\", "/")
             if not name:
@@ -1280,19 +1467,23 @@ class Handler(BaseHTTPRequestHandler):
             except Exception:
                 errors.append(name + "（解码失败）")
                 continue
-            dst = os.path.join(inbox, base)
+            dst, final_name = _unique_inbox_dst(inbox, base)
             try:
                 with open(dst, "wb") as out:
                     out.write(data)
-                saved.append(base)
+                saved.append(final_name)
+                if final_name != base:
+                    renamed.append("%s → %s" % (base, final_name))
             except Exception as e:
                 errors.append("%s（%s）" % (name, e))
         if saved:
             _log("已放入未处理：%s" % "、".join(saved))
+        if renamed:
+            _log("同名文件已自动重命名：%s" % "；".join(renamed))
         if errors:
             _log("导入失败：%s" % "；".join(errors))
         self._send_json({
-            "ok": True, "saved": saved, "errors": errors,
+            "ok": True, "saved": saved, "errors": errors, "renamed": renamed,
             "items": _inbox_list(),
             "tip": "文件已放入01未处理，可在下方列表检查/删减，然后点「豆包自动整理」",
         })

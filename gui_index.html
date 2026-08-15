@@ -337,6 +337,9 @@
       <button class="btn" id="btnPickFolder">选择资料文件夹</button>
       <button class="btn" id="btnPickFiles">选择资料文件</button>
     </div>
+    <div id="dropZone" style="margin-top:10px;border:2px dashed #94a3b8;border-radius:8px;padding:20px 12px;text-align:center;color:#64748b;font-size:14px;transition:all .15s">
+      把文件<b>拖到这里</b>，自动放入「01未处理」（支持多文件；同名文件自动改名不覆盖）
+    </div>
     <input type="file" id="pickFolder" webkitdirectory style="display:none">
     <input type="file" id="pickFiles" multiple style="display:none">
     <div class="hint" id="uploadTip" style="color:var(--accent-d);display:none"></div>
@@ -360,9 +363,15 @@
   <!-- ③ 豆包自动整理 -->
   <div class="card">
     <h2><span class="cat-no">03</span>豆包自动整理（让豆包帮你提炼笔记）</h2>
-    <div class="hint" style="margin-bottom:12px">流程：把素材放进知识库的 <b>01未处理</b> 文件夹（豆包会自动扫描这一处）→ 点「开始」约 2 秒后自动把豆包切前台并最大化 → 程序把素材按 D 层提示词模板发给豆包，自动复制回复生成 B 层笔记（素材随之移入「02已处理」）。<b>.md/.txt</b> 提取文字发送；<b>其他文件（word/pdf/excel/ppt/图片等）整文件直发豆包</b>（输入框支持粘贴附件，随后自动附上「发送格式」提示词）。先记录三个按钮位置（鼠标移到豆包对应位置按 F6）。整理期间<b>不要动鼠标和键盘</b>。</div>
+    <div class="hint" style="margin-bottom:12px">流程：把素材放进知识库的 <b>01未处理</b> 文件夹（豆包会自动扫描这一处）→ 选好下方「启动途径」→ 点「开始」：<b>网页版</b>会自动打开浏览器访问豆包网页（需已登录），<b>桌面版</b>需您先自行打开豆包客户端，随后程序把豆包窗口切前台并最大化 → 按 D 层提示词模板把素材发给豆包，自动复制回复生成 B 层笔记（素材随之移入「02已处理」）。<b>.md/.txt</b> 提取文字发送；<b>其他文件（word/pdf/excel/ppt/图片等）整文件直发豆包</b>（输入框支持粘贴附件，随后自动附上「发送格式」提示词）。先记录三个按钮位置（鼠标移到豆包对应位置按 F6）。整理期间<b>不要动鼠标和键盘</b>。</div>
 
     <div class="status-line" id="coordStatus">坐标：未记录</div>
+    <div class="btn-group">
+      <span class="grp-title">启动途径</span>
+      <label style="font-size:14px"><input type="radio" name="dbMode" id="dbModeWeb" value="web" checked> 网页版（默认，点「开始」自动打开浏览器）</label>
+      <label style="font-size:14px"><input type="radio" name="dbMode" id="dbModeDesktop" value="desktop"> 桌面版(exe，需先自行打开豆包客户端)</label>
+    </div>
+    <div class="hint" id="dbModeTip" style="display:none;margin:-4px 0 6px"></div>
     <div class="btn-group">
       <span class="grp-title">坐标文件</span>
       <input type="text" id="coordFile" placeholder="豆包坐标" style="min-width:120px">
@@ -667,6 +676,8 @@ function fillPrompts(prompts) {
 
 function renderDoubao(s) {
   const coords = s.coords || {};
+  const mode = s.doubao_mode || "web";
+  const modeLabel = mode === "desktop" ? "桌面版(exe)" : "网页版";
   const names = ["输入框", "下翻箭头", "复制按钮"];
   const parts = [];
   let all = true;
@@ -675,8 +686,29 @@ function renderDoubao(s) {
     if (c) parts.push(n + "(" + c.x + "," + c.y + ")");
     else all = false;
   });
-  $("coordStatus").innerHTML = "坐标文件：<b>" + (s.coord_file || "豆包坐标.json") + "</b>　坐标：" +
-    (parts.length ? parts.join(" ") : "未记录");
+  const counts = s.coord_counts || {};
+  const countStr = (counts.desktop !== undefined || counts.web !== undefined)
+    ? "（桌面版 " + (counts.desktop || 0) + " / 网页版 " + (counts.web || 0) + "）" : "";
+  $("coordStatus").innerHTML = "启动途径：<b>" + modeLabel + "</b>　坐标文件：<b>" +
+    (s.coord_file || "豆包坐标.json") + "</b>　坐标：" +
+    (parts.length ? parts.join(" ") : "未记录") + countStr;
+  // 启动途径 radio 勾选（与后端 doubao_mode 同步）
+  if (mode === "desktop") { $("dbModeDesktop").checked = true; $("dbModeWeb").checked = false; }
+  else { $("dbModeWeb").checked = true; $("dbModeDesktop").checked = false; }
+  $("dbModeWeb").disabled = !!s.doubao_running;
+  $("dbModeDesktop").disabled = !!s.doubao_running;
+  // 当前途径坐标为空 → 提示
+  const curCount = mode === "desktop" ? (counts.desktop || 0) : (counts.web || 0);
+  const modeTip = $("dbModeTip");
+  if (modeTip) {
+    if (curCount === 0) {
+      modeTip.style.display = "block";
+      modeTip.textContent = "当前途径（" + modeLabel + "）坐标为空：请用下方「坐标记录」按钮记录，或切换到另一途径。" +
+        (mode === "web" ? "网页版需浏览器已登录豆包。" : "");
+    } else {
+      modeTip.style.display = "none";
+    }
+  }
   // 坐标文件下拉
   const sel = $("coordFileList");
   const cur = s.coord_file || "豆包坐标.json";
@@ -841,15 +873,20 @@ async function uploadFiles(fileList, folderMode) {
   tip.style.display = "block";
   const MAX = 50 * 1024 * 1024;
   const pairs = [];
+  const skipped = [];
   for (const file of fileList) {
-    if (file.size > MAX) { tip.textContent = "已跳过超大文件：" + file.name + "（>50MB，请手动放入01未处理）"; continue; }
+    if (file.name.startsWith(".")) { skipped.push(file.name); continue; }
+    if (file.size > MAX) { skipped.push(file.name + "(>50MB)"); continue; }
     const rel = folderMode && file.webkitRelativePath
       ? file.webkitRelativePath.split("/").slice(1).join("/")
       : file.name;
     pairs.push({ rel: rel || file.name, file: file });
   }
+  if (skipped.length) toast("已跳过：" + skipped.join("、") + "（隐藏文件/超大文件）", false);
+  if (!pairs.length) { tip.style.display = "none"; return; }
   const CHUNK = 10;
   let done = 0;
+  const renamedAll = [];
   tip.textContent = "正在放入01未处理：0/" + pairs.length;
   for (let i = 0; i < pairs.length; i += CHUNK) {
     const chunk = pairs.slice(i, i + CHUNK);
@@ -865,16 +902,62 @@ async function uploadFiles(fileList, folderMode) {
     }
     const r = await api("/api/upload", { files });
     if (!r) { toast("无法连接服务，请先双击启动 bat", false); return; }
+    if (r.renamed && r.renamed.length) renamedAll.push.apply(renamedAll, r.renamed);
     done += chunk.length;
     tip.textContent = "正在放入01未处理：" + done + "/" + pairs.length;
   }
-  tip.textContent = "完成：共 " + pairs.length + " 个文件放入01未处理，可在下方列表检查/删减，然后点「豆包自动整理」🎉";
-  toast("资料已放入01未处理 ✓");
+  let msg = "完成：共 " + pairs.length + " 个文件放入01未处理，可在下方列表检查/删减，然后点「豆包自动整理」🎉";
+  if (renamedAll.length) msg = "完成：共 " + pairs.length + " 个文件放入01未处理；同名文件已自动改名：" + renamedAll.join("、") + " 🎉";
+  tip.textContent = msg;
+  toast("资料已放入01未处理 ✓" + (renamedAll.length ? "（" + renamedAll.length + " 个同名已改名）" : ""));
   await refreshInbox();
 }
 
 $("pickFolder").onchange = e => { uploadFiles(e.target.files, true); e.target.value = ""; };
 $("pickFiles").onchange = e => { uploadFiles(e.target.files, false); e.target.value = ""; };
+
+// ---- 拖放上传（未处理资料）----
+const dropZone = $("dropZone");
+["dragenter", "dragover"].forEach(ev => dropZone.addEventListener(ev, e => {
+  e.preventDefault();
+  e.stopPropagation();
+  dropZone.style.borderColor = "var(--accent)";
+  dropZone.style.background = "#eef2ff";
+  dropZone.style.color = "var(--accent-d)";
+}));
+["dragleave", "drop"].forEach(ev => dropZone.addEventListener(ev, e => {
+  e.preventDefault();
+  e.stopPropagation();
+  dropZone.style.borderColor = "#94a3b8";
+  dropZone.style.background = "";
+  dropZone.style.color = "#64748b";
+}));
+dropZone.addEventListener("drop", e => {
+  const dt = e.dataTransfer;
+  if (!dt) return;
+  const items = dt.items && dt.items.length ? Array.from(dt.items) : [];
+  const files = [];
+  const dirs = [];
+  if (items.length) {
+    items.forEach(item => {
+      if (item.kind !== "file") return;
+      let entry = null;
+      try { entry = item.webkitGetAsEntry ? item.webkitGetAsEntry() : null; } catch (err) {}
+      if (entry && entry.isDirectory) {
+        const f0 = item.getAsFile ? item.getAsFile() : null;
+        dirs.push(f0 && f0.name ? f0.name : "文件夹");
+        return;
+      }
+      const f = item.getAsFile ? item.getAsFile() : null;
+      if (f) files.push(f);
+    });
+  } else {
+    for (const f of (dt.files || [])) files.push(f);
+  }
+  if (dirs.length) toast("已跳过文件夹：" + dirs.join("、") + "（不支持拖入文件夹，请用「选择资料文件夹」）", false);
+  if (!files.length) { toast("没有可添加的文件", false); return; }
+  uploadFiles(files, false);
+});
 
 $("btnDelSel").onclick = async () => {
   const items = selectedItems();
@@ -986,9 +1069,24 @@ $("btnPromptSave").onclick = async () => {
 };
 
 // ---- 豆包自动整理 ----
+function dbModeChanged() {
+  const m = document.querySelector('input[name="dbMode"]:checked');
+  if (!m) return;
+  api("/api/doubao/mode", { mode: m.value }).then(r => {
+    if (r && r.ok) renderDoubao(r.status);
+    else toast("切换失败", false);
+  });
+}
+["dbModeWeb", "dbModeDesktop"].forEach(id => $(id).addEventListener("change", dbModeChanged));
+
+function currentModeLabel() {
+  const m = document.querySelector('input[name="dbMode"]:checked');
+  return m && m.value === "desktop" ? "桌面版" : "网页版";
+}
 function recCoord(which) {
+  const label = currentModeLabel();
   api("/api/coord/record", { which }).then(r => {
-    if (r && r.ok) toast("请把鼠标移到豆包" + which + "位置，按 F6 确认");
+    if (r && r.ok) toast("请把鼠标移到豆包[" + label + "]" + which + "位置，按 F6 确认");
     else if (r) toast(r.error || "失败", false);
   });
 }
@@ -1053,7 +1151,11 @@ $("btnDoubaoStart").onclick = async () => {
   }
   const wait = parseInt($("dbWait").value, 10) || 30;
   const max = parseInt($("dbMax").value, 10) || 0;
-  if (!confirm("确认开始豆包整理吗？\n\n请确保：\n1. 豆包客户端已打开并置顶可见\n2. 整理期间不要动鼠标和键盘\n\n本次最多处理 " + (max || "全部") + " 条，每条等豆包新回复出现（轮询复制，约 " + wait + " 秒×3 为超时兜底）")) return;
+  const isWeb = currentModeLabel() === "网页版";
+  const launchTip = isWeb
+    ? "1. 将自动打开浏览器访问豆包网页版（请确认浏览器已登录豆包）"
+    : "1. 请确保豆包桌面客户端已打开并置顶可见";
+  if (!confirm("确认开始豆包整理吗？\n\n请确保：\n" + launchTip + "\n2. 整理期间不要动鼠标和键盘\n\n本次最多处理 " + (max || "全部") + " 条，每条等豆包新回复出现（轮询复制，约 " + wait + " 秒×3 为超时兜底）")) return;
   busy($("btnDoubaoStart"), "启动中…");
   const r = await api("/api/doubao/start", { wait_seconds: wait, max_items: max });
   idle($("btnDoubaoStart"));
