@@ -13,7 +13,10 @@
   POST /api/set_root        设置知识库位置
   POST /api/init            创建知识库
   POST /api/upload          上传资料到未处理（base64 JSON）
-  POST /api/inbox/delete    删除未处理文件（移入 _kb_回收站，可找回）
+  POST /api/inbox/delete    删除未处理文件（移入 回收站，可找回）
+  GET  /api/trash           回收站文件列表（回收站，可恢复）
+  POST /api/trash/restore   恢复回收站文件回 01未处理（还原原名）
+  POST /api/trash/clear     清空回收站（物理删除，不可找回）
   POST /api/prompts         保存豆包提示词格式（发送格式）
   POST /api/debug/toggle    开关调试模式（开启时记录各目录快照）
   POST /api/debug/reset     调试复位：清除调试期间生成文件、已处理素材移回未处理
@@ -182,6 +185,7 @@ _coords = {}                             # 豆包坐标 {'输入框':{'x','y'},.
 _coord_waiting = {"which": ""}           # 正在等待用户记录哪个坐标
 _doubao_stop = threading.Event()         # 豆包整理停止信号
 _doubao_running = {"flag": False}
+_doubao_end = {"state": "", "msg": ""}   # 最近一次豆包整理结束状态（ok/error/stopped）
 _coord_cancel = threading.Event()        # 坐标记录取消信号
 
 
@@ -472,7 +476,7 @@ def _inbox_breakdown():
 
 
 def _doubao_materials():
-    """豆包提炼实际会扫描的素材清单：统一为「未处理」（仅 .md/.txt）。
+    """豆包提炼实际会扫描的素材清单：统一为「未处理」（所有非隐藏文件，.md/.txt 走文本、其余整文件直发）。
 
     与 doubao_automation._iter_material_sources 保持同源，供「自动匹配」按钮统计。
     """
@@ -487,8 +491,7 @@ def _doubao_materials():
                 continue
             for fn in sorted(os.listdir(d)):
                 p = os.path.join(d, fn)
-                if os.path.isfile(p) and not fn.startswith(".") \
-                        and fn.lower().endswith((".md", ".txt")):
+                if os.path.isfile(p) and not fn.startswith("."):
                     ap = os.path.abspath(p)
                     if ap in seen_paths:
                         continue
@@ -507,14 +510,14 @@ def _doubao_materials():
 
 
 def _inbox_delete(items):
-    """把指定来源的文件移入 <库>/_kb_回收站/（可找回，不做物理删除）。
+    """把指定来源的文件移入 <库>/回收站/（可找回，不做物理删除）。
 
     入参 items 为 [{"name": ..., "source": ...}, ...]；source 缺省按「未处理」处理。
     """
     root = _state.get("root")
     if not root:
         return [], ["知识库未设置"]
-    trash = os.path.join(root, "_kb_回收站")
+    trash = _trash_path()    # 复用路径函数（内部惰性迁移旧目录 _kb_回收站）
     os.makedirs(trash, exist_ok=True)
     src_map = {label: path for label, path in _import_source_dirs()}
     moved, errors = [], []
@@ -545,6 +548,155 @@ def _inbox_delete(items):
         except Exception as e:
             errors.append("%s（%s）" % (base, e))
     return moved, errors
+
+
+# ---------------------------------------------------------------------------
+# 回收站管理：列表 / 恢复 / 清空
+# ---------------------------------------------------------------------------
+_trash_mig_lock = threading.Lock()   # 回收站旧目录迁移锁（独立于 _lock，避免与业务串行锁耦合）
+
+def _trash_migrate():
+    """把旧目录 <root>/_kb_回收站 一次性迁移到 <root>/回收站（幂等、并发安全）。
+
+    仅当旧目录存在时执行；文件与子目录整体搬移（若跳过子目录，旧目录删不掉、
+    且子目录会失联）。目标重名时加 _mig_<n> 后缀，不覆盖。迁移完成后删除旧目录，
+    删除失败仅记日志、保留旧目录，下次访问自动重试。
+    """
+    root = _state.get("root")
+    if not root:
+        return
+    old = os.path.join(root, "_kb_回收站")
+    if not os.path.isdir(old):
+        return                            # 幂等：旧目录不存在即无副作用
+    new = os.path.join(root, "回收站")
+    with _trash_mig_lock:
+        if not os.path.isdir(old):        # 二次检查：另一线程已迁移完成
+            return
+        try:
+            os.makedirs(new, exist_ok=True)
+            for fn in sorted(os.listdir(old)):
+                src = os.path.join(old, fn)
+                dst = os.path.join(new, fn)
+                i = 1
+                while os.path.exists(dst):  # 目标重名：_mig_<n> 后缀不覆盖
+                    stem, ext = os.path.splitext(fn)
+                    i += 1
+                    dst = os.path.join(new, "%s_mig_%d%s" % (stem, i, ext))
+                try:
+                    os.replace(src, dst)    # 同 root 下同文件系统，文件/子目录均可整体搬移
+                except Exception:
+                    continue                # 单条目失败不阻断整体迁移
+            try:
+                os.rmdir(old)               # 空目录删除；仍非空（有失败项）则抛 OSError
+            except OSError:
+                _log("回收站旧目录 _kb_回收站 未能删除，请手动处理：%s" % old)
+            else:
+                _log("回收站旧目录已迁移：_kb_回收站 → 回收站")
+        except Exception as e:
+            _log("回收站迁移异常：%s" % e)
+
+
+def _trash_path():
+    """回收站绝对路径（<root>/回收站）；root 未设置时返回空串。
+
+    首次访问时自动把旧目录 _kb_回收站 迁移到 回收站（幂等，见 _trash_migrate）。
+    """
+    root = _state.get("root")
+    if not root:
+        return ""
+    _trash_migrate()
+    return os.path.join(root, "回收站")
+
+
+_TRASH_PREFIX_RE = re.compile(r"^(\d{8}_\d{6})_(.+)$")
+
+
+def _trash_restore_name(fn):
+    """从回收站文件名还原原始文件名。
+
+    回收站文件名有两种后缀来源，都要剥离：
+    - 删除时重名：_inbox_delete 生成 `YYYYMMDD_HHMMSS_<原名>_<N>`（_N 在扩展名后，如 aaa.md_2）
+    - 恢复时重名：_trash_restore 生成 `<原名去掉扩展名>_<N>.<ext>`（_N 在扩展名前，如 aaa_2.md）
+    """
+    m = _TRASH_PREFIX_RE.match(fn)
+    rest = m.group(2) if m else fn
+    m2 = re.match(r"^(.*)_(\d+)$", rest)
+    return m2.group(1) if m2 else rest
+
+
+def _trash_list():
+    """回收站内文件列表 [{name, size, mtime}]；目录不存在或为空时返回 []。"""
+    trash = _trash_path()
+    if not trash or not os.path.isdir(trash):
+        return []
+    items = []
+    try:
+        for fn in sorted(os.listdir(trash)):
+            p = os.path.join(trash, fn)
+            if os.path.isfile(p):
+                st = os.stat(p)
+                items.append({
+                    "name": fn,
+                    "size": st.st_size,
+                    "mtime": datetime.datetime.fromtimestamp(
+                        st.st_mtime).strftime("%Y-%m-%d %H:%M"),
+                })
+    except Exception:
+        pass
+    return items
+
+
+def _trash_restore(items):
+    """把回收站中指定文件移回 01未处理，还原原名；目标重名时加 _2/_3 后缀不覆盖。"""
+    root = _state.get("root")
+    if not root:
+        return [], ["知识库未设置"]
+    trash = _trash_path()
+    inbox = _inbox_path()
+    if not trash or not os.path.isdir(trash):
+        return [], ["回收站为空或不存在"]
+    restored, errors = [], []
+    for it in (items or []):
+        name = str(it.get("name") if isinstance(it, dict) else it or "")
+        base = os.path.basename(name)            # 防路径穿越：只取文件名
+        if not base or base.startswith("."):
+            errors.append("%s（非法文件名）" % base)
+            continue
+        src = os.path.join(trash, base)
+        if not os.path.isfile(src):
+            errors.append("%s（不存在）" % base)
+            continue
+        orig = _trash_restore_name(base)         # 还原原名
+        dst = os.path.join(inbox, orig)
+        if os.path.exists(dst):                  # 目标重名：_2/_3 唯一后缀
+            stem, ext = os.path.splitext(orig)
+            i = 2
+            while os.path.exists(os.path.join(inbox, "%s_%d%s" % (stem, i, ext))):
+                i += 1
+            dst = os.path.join(inbox, "%s_%d%s" % (stem, i, ext))
+        try:
+            os.replace(src, dst)
+            restored.append(os.path.basename(dst))
+        except Exception as e:
+            errors.append("%s（%s）" % (base, e))
+    return restored, errors
+
+
+def _trash_clear():
+    """物理删除回收站内全部文件（子目录跳过），返回清除的文件数。"""
+    trash = _trash_path()
+    if not trash or not os.path.isdir(trash):
+        return 0
+    cleared = 0
+    for fn in sorted(os.listdir(trash)):
+        p = os.path.join(trash, fn)
+        try:
+            if os.path.isfile(p):
+                os.remove(p)
+                cleared += 1
+        except Exception:
+            continue
+    return cleared
 
 
 # ---------------------------------------------------------------------------
@@ -687,6 +839,8 @@ class Handler(BaseHTTPRequestHandler):
             self._send_json({"ok": True, "summary": _latest_report_summary()})
         elif path == "/api/inbox":
             self._send_json({"ok": True, "items": _inbox_list()})
+        elif path == "/api/trash":
+            self._send_json({"ok": True, "items": _trash_list()})
         elif path == "/api/doubao/status":
             self._send_json({"ok": True, "coords": _coords,
                              "coord_file": _state.get("coord_file") or DEFAULT_COORD_FILE,
@@ -723,6 +877,8 @@ class Handler(BaseHTTPRequestHandler):
             "coords": _coords,
             "coord_waiting": _coord_waiting.get("which", ""),
             "doubao_running": _doubao_running["flag"],
+            "doubao_end": {"state": _doubao_end["state"],
+                           "msg": _doubao_end["msg"]},
             "prompts": _prompts_config(),
             "gen_spec": GEN_SPEC,
             "debug": {
@@ -942,6 +1098,22 @@ class Handler(BaseHTTPRequestHandler):
             self._send_json({"ok": True, "moved": moved, "errors": errors,
                              "items": _inbox_list()})
 
+        elif path == "/api/trash/restore":
+            restored, errors = _trash_restore(body.get("items") or [])
+            _log("恢复回收站文件：成功 %d 个%s" % (
+                len(restored),
+                "（%s）" % "、".join(restored) if restored else ""))
+            if errors:
+                _log("恢复失败：%s" % "；".join(errors))
+            self._send_json({"ok": True, "restored": restored, "errors": errors,
+                             "items": _trash_list()})
+
+        elif path == "/api/trash/clear":
+            cleared = _trash_clear()
+            _log("已清空回收站：%d 个文件" % cleared)
+            self._send_json({"ok": True, "cleared": cleared,
+                             "items": _trash_list()})
+
         else:
             startup_log("404 POST " + self.path)
             self._send_json({"ok": False, "error": "未知接口: POST " + self.path},
@@ -1031,6 +1203,7 @@ class Handler(BaseHTTPRequestHandler):
         self._send_json({"ok": True, "status": self._status()})
 
         def _worker():
+            end_state, end_msg = "ok", "豆包整理已完成，素材已提炼为 B 层笔记"
             try:
                 from obsidian_kb import (config as config_mod,
                                          doubao_automation,
@@ -1063,13 +1236,24 @@ class Handler(BaseHTTPRequestHandler):
                         report, root, log_dir, started, 0.0)
                     _log("处理报告：%s" % path)
             except Exception as e:
+                end_state, end_msg = "error", "豆包整理出错：%s" % e
                 _log("豆包整理出错：%s" % e)
                 startup_log("DOUBAO ERROR " + traceback.format_exc())
+            else:
+                if _doubao_stop.is_set():
+                    end_state, end_msg = "stopped", "豆包整理已被手动停止"
             finally:
                 _doubao_running["flag"] = False
                 with _lock:
                     _busy.update(flag=False, action="")
-                _log("———————— 完成：豆包整理 ————————")
+                _doubao_end["state"] = end_state
+                _doubao_end["msg"] = end_msg
+                if end_state == "ok":
+                    _log("———————— 完成：豆包整理（正常跑完）————————")
+                elif end_state == "error":
+                    _log("———————— 完成：豆包整理（出错中断）————————")
+                else:
+                    _log("———————— 完成：豆包整理（手动停止）————————")
 
         threading.Thread(target=_worker, daemon=True).start()
 

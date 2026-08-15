@@ -243,6 +243,31 @@
   .logwin.minimized { height: auto; resize: none; }
   .logwin.minimized .logwin-body { display: none; }
 
+  /* ---------- 模态面板（回收站） ---------- */
+  .modal-mask {
+    position: fixed; inset: 0; z-index: 200;
+    background: rgba(15,23,42,.45);
+    display: flex; align-items: center; justify-content: center;
+    padding: 20px;
+  }
+  .modal {
+    background: var(--surface); border: 1px solid var(--line);
+    border-radius: var(--radius); box-shadow: var(--shadow-md);
+    width: 560px; max-width: 100%; max-height: 80vh;
+    display: flex; flex-direction: column; overflow: hidden;
+    animation: rise .25s ease both;
+  }
+  .modal-head {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 14px 18px; border-bottom: 1px solid var(--line);
+  }
+  .modal-head h3 { font-size: 15.5px; font-weight: 700; }
+  .modal-body { flex: 1; min-height: 0; padding: 14px 18px; }
+  .modal-foot {
+    padding: 12px 18px; border-top: 1px solid var(--line);
+    display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap;
+  }
+
   /* ---------- 提示横幅 / 页脚 ---------- */
   .toast {
     position: fixed; top: 18px; left: 50%; transform: translateX(-50%);
@@ -294,31 +319,27 @@
   <div class="card">
     <h2><span class="cat-no">01</span>知识库放在哪里</h2>
     <div class="row">
-      <input type="text" id="root" placeholder="例如：D:\我的知识库">
+      <input type="text" id="root" placeholder="例如：D:\我的知识库" style="flex:1">
       <button class="btn ghost" id="btnSetRoot">保存位置</button>
       <button class="btn ghost" id="btnOpenPath">打开该路径</button>
     </div>
-    <div class="hint">选一个空文件夹或新文件夹，程序会在里面自动创建「01未处理 / 02已处理 / 03知识提炼 / 04知识聚合 / 05规则模板」等标准结构。填好后点「保存位置」，再点「① 创建知识库」；也可直接点「打开该路径」在文件管理器里查看或新建。</div>
+    <div class="row" style="margin-top:10px">
+      <button class="btn" id="btnInit">创建知识库</button>
+    </div>
+    <div class="hint">选一个空文件夹或新文件夹，程序会在里面自动创建「01未处理 / 02已处理 / 03知识提炼 / 04知识聚合 / 05规则模板」等标准结构。填好后点「保存位置」，再点「创建知识库」即可一键生成；也可直接点「打开该路径」在文件管理器里查看或新建。</div>
   </div>
 
-  <!-- ② 日常操作 -->
+  <!-- 02 未处理资料 -->
   <div class="card">
-    <h2><span class="cat-no">02</span>日常操作（点一下就行）</h2>
-    <div class="row">
-      <button class="btn ghost" id="btnInit">① 创建知识库</button>
-      <button class="btn" id="btnPickFolder">② 选择资料文件夹</button>
+    <h2><span class="cat-no">02</span>未处理资料（01未处理，整理前可随时删减）</h2>
+    <div class="hint">把资料放进「01未处理」后，用下方「豆包自动整理」批量提炼成标准笔记并自动建立知识链接。</div>
+    <div class="row" style="margin-top:10px">
+      <button class="btn" id="btnPickFolder">选择资料文件夹</button>
       <button class="btn" id="btnPickFiles">选择资料文件</button>
-      <button class="btn ghost" id="btnOpen">打开知识库文件夹</button>
     </div>
     <input type="file" id="pickFolder" webkitdirectory style="display:none">
     <input type="file" id="pickFiles" multiple style="display:none">
-    <div class="hint">把资料放进「01未处理」后，用下方「豆包自动整理」批量提炼成标准笔记并自动建立知识链接。</div>
     <div class="hint" id="uploadTip" style="color:var(--accent-d);display:none"></div>
-  </div>
-
-  <!-- ③ 待同步资料 -->
-  <div class="card">
-    <h2><span class="cat-no">03</span>待整理资料（01未处理，整理前可随时删减）</h2>
     <div class="inbox-head">
       <span class="row" style="gap:10px">
         <input type="checkbox" id="inboxSelAll" title="全选 / 取消全选">
@@ -328,32 +349,18 @@
         <button class="btn soft" id="btnDelSel">删除所选</button>
         <button class="btn soft" id="btnClearInbox">清空01未处理</button>
         <button class="btn soft" id="btnRefreshInbox">刷新</button>
+        <button class="btn soft" id="btnTrash">回收站</button>
       </span>
     </div>
-      <div class="inbox-list" id="inboxList">
-        <div class="empty">（暂无文件）</div>
-      </div>
-    </div>
-
-  <!-- ④ 最近结果 -->
-  <div class="card">
-    <h2><span class="cat-no">04</span>最近一次处理结果</h2>
-    <div class="status-line" id="vaultStatus">知识库：未设置</div>
-    <div class="grid" id="statGrid">
-      <div class="stat"><b>—</b><span>导入文件</span></div>
-      <div class="stat"><b>—</b><span>新增笔记</span></div>
-      <div class="stat"><b>—</b><span>新增双链</span></div>
-      <div class="stat"><b>—</b><span>索引页</span></div>
-    </div>
-    <div class="row" style="margin-top:14px">
-      <button class="btn ghost" id="btnReport">查看完整处理报告</button>
+    <div class="inbox-list" id="inboxList">
+      <div class="empty">（暂无文件）</div>
     </div>
   </div>
 
-  <!-- ⑤ 豆包自动整理 -->
+  <!-- ③ 豆包自动整理 -->
   <div class="card">
-    <h2><span class="cat-no">05</span>豆包自动整理（让豆包帮你提炼笔记）</h2>
-    <div class="hint" style="margin-bottom:12px">流程：把素材放进知识库的 <b>01未处理</b> 文件夹（豆包会自动扫描这一处）→ 点「开始」约 2 秒后自动把豆包切前台并最大化 → 程序把素材按 D 层提示词模板发给豆包，自动复制回复生成 B 层笔记（素材随之移入「02已处理」）。先记录三个按钮位置（鼠标移到豆包对应位置按 F6）。整理期间<b>不要动鼠标和键盘</b>。</div>
+    <h2><span class="cat-no">03</span>豆包自动整理（让豆包帮你提炼笔记）</h2>
+    <div class="hint" style="margin-bottom:12px">流程：把素材放进知识库的 <b>01未处理</b> 文件夹（豆包会自动扫描这一处）→ 点「开始」约 2 秒后自动把豆包切前台并最大化 → 程序把素材按 D 层提示词模板发给豆包，自动复制回复生成 B 层笔记（素材随之移入「02已处理」）。<b>.md/.txt</b> 提取文字发送；<b>其他文件（word/pdf/excel/ppt/图片等）整文件直发豆包</b>（输入框支持粘贴附件，随后自动附上「发送格式」提示词）。先记录三个按钮位置（鼠标移到豆包对应位置按 F6）。整理期间<b>不要动鼠标和键盘</b>。</div>
 
     <div class="status-line" id="coordStatus">坐标：未记录</div>
     <div class="btn-group">
@@ -382,11 +389,12 @@
         <input type="number" id="dbWait" min="5" max="300" style="width:70px;min-width:0" value="30">
         秒
       </label>
+      <div class="hint" style="margin:2px 0 6px">发送后程序会<b>轮询复制</b>：不断点复制按钮，直到剪贴板出现豆包的新回复才输出笔记；此处数值×3 作<b>超时兜底</b>（默认 30 秒，超时按当前内容继续）。</div>
       <label style="font-size:14px">模拟点击循环次数
         <input type="number" id="dbMax" min="0" style="width:70px;min-width:0" value="1">
         次（0=全部处理）
       </label>
-      <button class="btn soft" id="btnDbAutoMatch" title="把循环次数设为「待整理资料」里的文件数">自动匹配</button>
+      <button class="btn soft" id="btnDbAutoMatch" title="把循环次数设为「未处理资料」里的文件数">自动匹配</button>
     </div>
     <div class="btn-group" style="justify-content:flex-end">
       <span class="grp-title">执行</span>
@@ -398,7 +406,7 @@
 
     <!-- 提示词格式配置 -->
     <div style="margin-top:14px;border-top:1px dashed #cbd5e1;padding-top:12px">
-      <div class="hint" style="margin-bottom:8px">「发送格式」是发给豆包的完整提示词，<b>{素材内容}</b> 处会自动替换为素材正文。保存后写回知识库 <b>05规则模板/</b> 目录。</div>
+      <div class="hint" style="margin-bottom:8px">「发送格式」是发给豆包的完整提示词，<b>{素材内容}</b> 处会自动替换为素材正文（文件直发时替换为文件名说明）。保存后写回知识库 <b>05规则模板/</b> 目录。</div>
       <div style="margin-bottom:4px"><label style="font-size:14px;font-weight:600">发送格式（发给豆包的提示词）</label></div>
       <textarea id="promptSend" rows="14" spellcheck="false"
         style="width:100%;font-family:ui-monospace,Consolas,monospace;font-size:13px;line-height:1.5;resize:vertical;box-sizing:border-box"></textarea>
@@ -420,7 +428,7 @@
 
   <!-- ⑥ 高级设置 -->
   <div class="card">
-    <h2><span class="cat-no">06</span>高级设置</h2>
+    <h2><span class="cat-no">04</span>高级设置</h2>
     <div style="margin-top:4px">
       <div style="margin-bottom:4px"><label style="font-size:14px;font-weight:600">调试模式</label></div>
       <div class="hint" style="margin-bottom:8px">开启后，豆包整理将<b>跳过链接引擎 / 处理报告</b>；点「复位」可撤销调试期间的全部操作：删除新建的笔记/日志，并把已处理素材移回 <b>01未处理</b>。调试期请用网页「豆包自动整理」，勿用命令行 sync（会污染既有笔记的相关笔记区块）。</div>
@@ -431,7 +439,22 @@
     </div>
   </div>
 
-  <!-- ⑦ 运行日志（悬浮窗：可拖动、右下角缩放、可最小化；可嵌入页面原位固定） -->
+  <!-- ⑤ 最近结果 -->
+  <div class="card">
+    <h2><span class="cat-no">05</span>最近一次处理结果</h2>
+    <div class="status-line" id="vaultStatus">知识库：未设置</div>
+    <div class="grid" id="statGrid">
+      <div class="stat"><b>—</b><span>导入文件</span></div>
+      <div class="stat"><b>—</b><span>新增笔记</span></div>
+      <div class="stat"><b>—</b><span>新增双链</span></div>
+      <div class="stat"><b>—</b><span>索引页</span></div>
+    </div>
+    <div class="row" style="margin-top:14px">
+      <button class="btn ghost" id="btnReport">查看完整处理报告</button>
+    </div>
+  </div>
+
+  <!-- 运行日志（悬浮窗：可拖动、右下角缩放、可最小化；可嵌入页面原位固定） -->
   <div class="logwin" id="logWin">
     <div class="logwin-head" id="logWinHead">
       <span class="logwin-title">运行日志</span>
@@ -451,11 +474,39 @@
   </footer>
 </div>
 
+<!-- 回收站模态 -->
+<div class="modal-mask" id="trashMask" style="display:none">
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="trashTitle">
+    <div class="modal-head">
+      <h3 id="trashTitle">回收站</h3>
+      <button class="btn ghost" id="btnTrashClose">关闭</button>
+    </div>
+    <div class="modal-body">
+      <div class="inbox-head">
+        <span class="row" style="gap:10px">
+          <input type="checkbox" id="trashSelAll" title="全选 / 取消全选">
+          <span id="trashCount">共 0 个文件</span>
+        </span>
+        <span class="row" style="gap:8px">
+          <button class="btn soft" id="btnTrashRestore">恢复所选</button>
+          <button class="btn danger" id="btnTrashClear">清空回收站</button>
+        </span>
+      </div>
+      <div class="inbox-list" id="trashList">
+        <div class="empty">（回收站为空）</div>
+      </div>
+      <div class="hint">网页删除的文件都在这里，可随时「恢复所选」回 01未处理；「清空回收站」会<b>物理删除</b>其中所有文件，无法找回。</div>
+    </div>
+  </div>
+</div>
+
 <script>
 "use strict";
 const $ = id => document.getElementById(id);
 let lastLogId = 0;
 let connected = true;
+let prevDoubaoRunning = false;   // 豆包运行状态下降沿检测
+let doubaoAudioCtx = null;       // Web Audio 单例（用户手势内创建/恢复）
 
 function toast(msg, ok) {
   const t = $("toast");
@@ -464,6 +515,50 @@ function toast(msg, ok) {
   t.style.display = "block";
   clearTimeout(t._h);
   t._h = setTimeout(() => { t.style.display = "none"; }, 3200);
+}
+
+// ---- 豆包整理完成通知（提示音 + 系统通知）----
+function ensureAudio() {
+  try {
+    if (!doubaoAudioCtx) {
+      const AC = window.AudioContext || window.webkitAudioContext;
+      if (AC) doubaoAudioCtx = new AC();
+    }
+    if (doubaoAudioCtx && doubaoAudioCtx.state === "suspended") doubaoAudioCtx.resume();
+  } catch (e) { /* 无音频环境静默降级 */ }
+}
+function playEndBeep(ok) {
+  if (!doubaoAudioCtx) return;
+  try {
+    const ctx = doubaoAudioCtx, now = ctx.currentTime;
+    const freqs = ok ? [880, 1174] : [440, 330];   // 叮咚 / 警示
+    const dur = ok ? 0.18 : 0.28;
+    freqs.forEach((f, i) => {
+      const t0 = now + i * (dur + 0.08);
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = "sine";
+      osc.frequency.value = f;
+      gain.gain.setValueAtTime(0.001, t0);
+      gain.gain.exponentialRampToValueAtTime(0.45, t0 + 0.02);
+      gain.gain.exponentialRampToValueAtTime(0.001, t0 + dur);
+      osc.connect(gain).connect(ctx.destination);
+      osc.start(t0);
+      osc.stop(t0 + dur + 0.05);
+    });
+  } catch (e) { /* 忽略 */ }
+}
+function notifyDoubaoEnd(state, msg) {
+  const ok = state === "ok";
+  playEndBeep(ok);
+  const body = msg || (ok ? "豆包整理已完成" : "豆包整理出错");
+  if ("Notification" in window && Notification.permission === "granted") {
+    try {
+      new Notification(ok ? "豆包整理已完成" : "豆包整理出错", { body });
+      return;
+    } catch (e) { /* 构造失败降级 toast */ }
+  }
+  toast(body, ok);   // 权限非 granted / 不支持时降级页面 toast
 }
 
 function setConnError(show) {
@@ -518,7 +613,7 @@ function setButtons(disabled) {
 function renderStatus(s) {
   if (s.root) {
     let html = "知识库：" + "<b>" + s.root + "</b>"
-      + (s.vault_exists ? "（已存在）" : "（尚未创建，请点「① 创建知识库」）");
+      + (s.vault_exists ? "（已存在）" : "（尚未创建，请点上方「创建知识库」）");
     if (s.busy) html += "　<span style='color:#b45309'>⏳ 正在" + s.busy_action + "……</span>";
     $("vaultStatus").innerHTML = html;
   } else {
@@ -538,6 +633,15 @@ function renderStatus(s) {
 async function refreshStatus() {
   const s = await api("/api/status");
   if (s && s.ok) {
+    const wasRunning = prevDoubaoRunning;
+    prevDoubaoRunning = !!s.doubao_running;
+    // 下降沿：豆包整理刚结束（仅 ok/error 提醒，stopped 不提醒）
+    if (wasRunning && !s.doubao_running) {
+      const end = s.doubao_end || {};
+      if (end.state === "ok" || end.state === "error") {
+        notifyDoubaoEnd(end.state, end.msg);
+      }
+    }
     renderStatus(s);
     renderDoubao(s);
     renderDebug(s);
@@ -646,6 +750,47 @@ async function refreshInbox() {
   if (r && r.ok) renderInbox(r.items || []);
 }
 
+// ---- 回收站 ----
+function renderTrash(items) {
+  const list = $("trashList");
+  $("trashCount").textContent = "共 " + items.length + " 个文件";
+  if ($("trashSelAll")) $("trashSelAll").checked = false;
+  if (!items.length) {
+    list.innerHTML = '<div class="empty">（回收站为空）</div>';
+    return;
+  }
+  list.innerHTML = "";
+  items.forEach(it => {
+    const row = document.createElement("label");
+    row.className = "inbox-item";
+    row.innerHTML =
+      '<input type="checkbox" data-name="' + it.name.replace(/"/g, "&quot;") + '">' +
+      '<span class="nm">' + it.name.replace(/</g, "&lt;") + "</span>" +
+      '<span class="sz">' + fmtSize(it.size) + "</span>" +
+      '<span class="tm">' + it.mtime + "</span>";
+    list.appendChild(row);
+  });
+}
+
+async function refreshTrash() {
+  const r = await api("/api/trash");
+  if (r && r.ok) renderTrash(r.items || []);
+}
+
+function openTrash() {
+  $("trashMask").style.display = "flex";
+  refreshTrash();
+}
+function closeTrash() { $("trashMask").style.display = "none"; }
+
+function trashSelected() {
+  const out = [];
+  document.querySelectorAll("#trashList input:checked").forEach(cb => {
+    out.push({ name: cb.getAttribute("data-name") });
+  });
+  return out;
+}
+
 function selectedItems() {
   const out = [];
   document.querySelectorAll("#inboxList input:checked").forEach(cb => {
@@ -680,11 +825,6 @@ $("btnInit").onclick = async () => {
   if (r && r.ok) toast("正在创建知识库，请看下方日志");
   else if (!r) toast("无法连接服务，请先双击启动 bat", false);
   else toast(r.error || "失败", false);
-};
-
-$("btnOpen").onclick = async () => {
-  const r = await api("/api/open", {});
-  toast(r ? (r.ok ? "已打开知识库文件夹" : (r.error || "失败")) : "无法连接服务", r && r.ok);
 };
 
 $("btnReport").onclick = async () => {
@@ -739,7 +879,7 @@ $("pickFiles").onchange = e => { uploadFiles(e.target.files, false); e.target.va
 $("btnDelSel").onclick = async () => {
   const items = selectedItems();
   if (!items.length) { toast("请先勾选要删除的文件", false); return; }
-  if (!confirm("确定删除这 " + items.length + " 个文件吗？（会移到 _kb_回收站，可找回）")) return;
+  if (!confirm("确定删除这 " + items.length + " 个文件吗？（会移到 回收站，可找回）")) return;
   busy($("btnDelSel"), "删除中…");
   const r = await api("/api/inbox/delete", { items });
   idle($("btnDelSel"));
@@ -756,7 +896,7 @@ $("btnClearInbox").onclick = async () => {
                  source: cb.getAttribute("data-source") || "01未处理" });
   });
   if (!items.length) { toast("01未处理里已经是空的", false); return; }
-  if (!confirm("确定清空01未处理里的 " + items.length + " 个文件吗？（会移到 _kb_回收站，可找回）")) return;
+  if (!confirm("确定清空01未处理里的 " + items.length + " 个文件吗？（会移到 回收站，可找回）")) return;
   busy($("btnClearInbox"), "清空中…");
   const r = await api("/api/inbox/delete", { items });
   idle($("btnClearInbox"));
@@ -775,6 +915,44 @@ $("inboxSelAll").onchange = () => {
 };
 
 $("btnRefreshInbox").onclick = () => refreshInbox();
+
+// ---- 回收站操作 ----
+$("btnTrash").onclick = () => openTrash();
+$("btnTrashClose").onclick = () => closeTrash();
+$("trashMask").addEventListener("click", e => {
+  if (e.target === $("trashMask")) closeTrash();
+});
+$("trashSelAll").onchange = () => {
+  const c = $("trashSelAll").checked;
+  document.querySelectorAll("#trashList input[type=checkbox]").forEach(cb => { cb.checked = c; });
+};
+$("btnTrashRestore").onclick = async () => {
+  const items = trashSelected();
+  if (!items.length) { toast("请先勾选要恢复的文件", false); return; }
+  if (!confirm("确定恢复这 " + items.length + " 个文件到 01未处理 吗？")) return;
+  busy($("btnTrashRestore"), "恢复中…");
+  const r = await api("/api/trash/restore", { items });
+  idle($("btnTrashRestore"));
+  if (r && r.ok) {
+    toast("已恢复 " + r.restored.length + " 个文件 ✓");
+    renderTrash(r.items || []);
+    refreshInbox();
+    if (r.errors && r.errors.length) toast("部分恢复失败：" + r.errors.join("；"), false);
+  } else if (!r) toast("无法连接服务，请先双击启动 bat", false);
+  else toast(r.error || "恢复失败", false);
+};
+$("btnTrashClear").onclick = async () => {
+  if (!confirm("确定清空回收站吗？\n回收站中的文件将被【永久删除】，无法找回！")) return;
+  if (!confirm("再次确认：清空后文件不可恢复，确定继续？")) return;
+  busy($("btnTrashClear"), "清空中…");
+  const r = await api("/api/trash/clear", {});
+  idle($("btnTrashClear"));
+  if (r && r.ok) {
+    toast("已清空回收站（" + r.cleared + " 个文件）✓");
+    renderTrash(r.items || []);
+  } else if (!r) toast("无法连接服务，请先双击启动 bat", false);
+  else toast(r.error || "清空失败", false);
+};
 
 // ---- 高级设置：调试模式 ----
 $("debugEnabled").onchange = async () => {
@@ -869,9 +1047,13 @@ $("btnDoubaoTest").onclick = async () => {
 };
 
 $("btnDoubaoStart").onclick = async () => {
+  ensureAudio();   // 用户手势内创建 AudioContext（完成后响铃用）
+  if ("Notification" in window && Notification.permission === "default") {
+    try { Notification.requestPermission(); } catch (e) {}
+  }
   const wait = parseInt($("dbWait").value, 10) || 30;
   const max = parseInt($("dbMax").value, 10) || 0;
-  if (!confirm("确认开始豆包整理吗？\n\n请确保：\n1. 豆包客户端已打开并置顶可见\n2. 整理期间不要动鼠标和键盘\n\n本次最多处理 " + (max || "全部") + " 条，每条等待约 " + wait + " 秒")) return;
+  if (!confirm("确认开始豆包整理吗？\n\n请确保：\n1. 豆包客户端已打开并置顶可见\n2. 整理期间不要动鼠标和键盘\n\n本次最多处理 " + (max || "全部") + " 条，每条等豆包新回复出现（轮询复制，约 " + wait + " 秒×3 为超时兜底）")) return;
   busy($("btnDoubaoStart"), "启动中…");
   const r = await api("/api/doubao/start", { wait_seconds: wait, max_items: max });
   idle($("btnDoubaoStart"));

@@ -112,7 +112,7 @@ try:
     # 删除（移入回收站）
     mv, errs = gui_server._inbox_delete([{"name": "临时.md", "source": "0101未处理"}])
     say("[6 _inbox_delete] moved=%s errors=%s" % (mv, errs))
-    trash = os.path.join(VAULT, "_kb_回收站")
+    trash = os.path.join(VAULT, "回收站")
     assert os.path.isdir(trash) and len(os.listdir(trash)) == 1
     say("[6] OK 辅助函数 + 回收站逻辑")
 
