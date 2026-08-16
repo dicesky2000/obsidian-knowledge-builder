@@ -34,6 +34,8 @@
     --radius-sm: 10px;                      /* 控件 */
     --mask: rgba(15,23,42,.45);
     --guide-font-size: 12px;                /* 使用说明基准字号（可 A-/A+ 缩放，±5 档） */
+    --guide-h1-bg: rgba(61,139,253,.13);    /* 一级折叠栏背景（克制淡蓝） */
+    --guide-h2-bg: rgba(61,139,253,.08);    /* 二级折叠栏背景（更淡） */
     --font: "Microsoft YaHei", "PingFang SC", system-ui, -apple-system,
             BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
     --font-mono: "Cascadia Code", Consolas, "Courier New", monospace;
@@ -70,6 +72,8 @@
       --log-bg: #0b1220;
       --log-fg: #d7e0e8;
       --log-border: #1d2a37;
+      --guide-h1-bg: rgba(109,182,255,.16); /* 一级折叠栏背景（克制冰蓝） */
+      --guide-h2-bg: rgba(109,182,255,.09); /* 二级折叠栏背景（更淡） */
     }
   }
   * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -144,7 +148,7 @@
   .notice .notice-ic { flex: none; font-size: 1em; }
   .notice b { color: var(--warn); font-weight: 700; }
   .dropzone {
-    margin-top: 10px; border: 2px dashed var(--line-2); border-radius: var(--radius-sm);
+    margin-top: 10px; margin-bottom: 12px; border: 2px dashed var(--line-2); border-radius: var(--radius-sm);
     padding: 20px 12px; text-align: center; color: var(--muted); font-size: 14px;
     background: var(--surface-2);
     transition: border-color .15s ease, background .15s ease, color .15s ease;
@@ -224,7 +228,8 @@
     position: sticky; top: 0; z-index: 1;
     display: flex; justify-content: space-between; align-items: center;
     padding: 14px 16px; font-size: 1.17em; font-weight: 700; color: var(--ink);
-    background: var(--surface-2);
+    background: var(--surface-solid);     /* 不透明：滚动时内容不透出 */
+    border-bottom: 1px solid var(--line);
   }
   .guide summary::-webkit-details-marker { display: none; }
   .guide-sum-r { display: inline-flex; align-items: center; gap: 10px; }
@@ -248,23 +253,47 @@
   .guide-item summary {
     list-style: none; cursor: pointer; user-select: none;
     display: flex; justify-content: space-between; align-items: center;
-    padding: 9px 12px; font-size: 1.04em; font-weight: 600; color: var(--ink);
+    padding: 9px 12px; font-size: 1.04em; font-weight: 700; color: var(--ink);
+    background: var(--guide-h1-bg);
   }
   .guide-item summary::-webkit-details-marker { display: none; }
   .guide-item-body { padding: 4px 12px 11px; font-size: 1em; line-height: 1.7; color: var(--muted); }
   .guide-item-body b { color: var(--ink); font-weight: 600; }
-  /* 二级子标题（03 豆包整理内：轮询复制/坐标文件/发送格式/B层） */
-  .guide-sub { border-bottom: 1px solid var(--line); }
-  .guide-sub:last-child { border-bottom: none; }
-  .guide-sub summary {
+  /* 由此开始（可折叠，默认收起） */
+  .guide-start { border: 1px solid var(--line); border-radius: var(--radius-sm); margin: 2px 0 10px; overflow: hidden; background: var(--surface-2); }
+  .guide-start > summary {
     list-style: none; cursor: pointer; user-select: none;
     display: flex; justify-content: space-between; align-items: center;
-    padding: 8px 2px; font-size: 1em; font-weight: 600; color: var(--ink);
+    padding: 9px 12px; font-size: 1.04em; font-weight: 700; color: var(--ink);
+    background: var(--guide-h1-bg);
   }
-  .guide-sub summary::-webkit-details-marker { display: none; }
-  .guide-sub[open] > summary .guide-arrow { transform: rotate(180deg); }
+  .guide-start > summary::-webkit-details-marker { display: none; }
+  .guide-start > summary .guide-arrow { transition: transform .15s ease; }
+  .guide-start[open] > summary .guide-arrow { transform: rotate(180deg); }
+  .guide-start-body { padding: 6px 12px 12px; font-size: 1em; line-height: 1.7; color: var(--muted); }
+  .guide-start-body b { color: var(--ink); font-weight: 600; }
+  /* 二级子标题（可折叠，默认收起） */
+  .guide-sub { border-bottom: 1px solid var(--line); margin-top: 4px; }
+  .guide-sub:last-child { border-bottom: none; }
+  .guide-sub-title {
+    list-style: none; cursor: pointer; user-select: none;
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 8px 4px; font-size: 1em; font-weight: 700; color: var(--ink);
+    background: var(--guide-h2-bg);
+    border-radius: 6px;
+  }
+  .guide-sub-title::-webkit-details-marker { display: none; }
+  .guide-sub[open] > .guide-sub-title .guide-arrow { transform: rotate(180deg); }
   .guide-sub-body { padding: 2px 2px 10px; font-size: 1em; line-height: 1.7; color: var(--muted); }
   .guide-sub-body b { color: var(--ink); font-weight: 600; }
+  /* 三级子标题（静态展示：二级展开后全部直接显示，不折叠） */
+  .guide-mini { border: none; margin: 3px 0 2px 8px; }
+  .guide-mini-title {
+    display: flex; align-items: center; gap: 4px;
+    padding: 5px 2px; font-size: 0.97em; font-weight: 700; color: var(--primary);
+  }
+  .guide-mini-body { padding: 0 2px 8px 10px; font-size: 1em; line-height: 1.7; color: var(--muted); }
+  .guide-mini-body b { color: var(--ink); font-weight: 600; }
 
   /* ---------- 连接错误条 ---------- */
   .errbar {
@@ -541,50 +570,163 @@
         </span>
       </summary>
       <div class="guide-body">
-        <div class="hint" style="margin-bottom:4px"><b>使用流程</b>（首次使用约 2 分钟）</div>
-        <div class="steps">
-          <div class="step"><span class="step-no">1</span><div class="step-txt"><b>放素材</b> —— 把资料放进知识库的 <b>01未处理</b> 文件夹（豆包会自动扫描这一处）。</div></div>
-          <div class="step"><span class="step-no">2</span><div class="step-txt"><b>选「启动途径」</b> —— 下方选好网页版或桌面版：<b>网页版</b>点「开始」后自动打开浏览器访问豆包（需已登录）；<b>桌面版</b>需您先自行打开豆包客户端。</div></div>
-          <div class="step"><span class="step-no">3</span><div class="step-txt"><b>记录坐标（仅首次）</b> —— 鼠标移到豆包对应位置按 <b>F6</b>，依次记录「输入框 / 下翻 / 复制」三个按钮位置。</div></div>
-          <div class="step"><span class="step-no">4</span><div class="step-txt"><b>点「开始」</b> —— 程序把豆包窗口切前台并最大化，按 D 层提示词模板把素材发给豆包，自动复制回复生成 B 层笔记，素材随之移入「02已处理」。</div></div>
-        </div>
-        <div class="hint" style="margin-bottom:4px"><b>素材发送方式</b></div>
-        <div class="hint" style="margin-top:2px">• <b>.md / .txt</b>：提取文字发送；<b>其他文件</b>（word / pdf / excel / ppt / 图片等）：整文件直发豆包（输入框支持粘贴附件，随后自动附上「发送格式」提示词）。</div>
-        <div class="notice"><span class="notice-ic">⚠</span><div>整理期间<b>不要动鼠标和键盘</b>，避免干扰豆包操作。</div></div>
+        <details class="guide-start">
+          <summary>由此开始（首次使用约 2 分钟）<span class="guide-arrow">▾</span></summary>
+          <div class="guide-start-body">
+            <div class="steps">
+              <div class="step"><span class="step-no">1</span><div class="step-txt"><b>放素材</b> —— 把资料放进知识库的 <b>01未处理</b> 文件夹（豆包会自动扫描这一处）。</div></div>
+              <div class="step"><span class="step-no">2</span><div class="step-txt"><b>选「启动途径」</b> —— 下方选好网页版或桌面版：<b>网页版</b>点「开始」后自动打开浏览器访问豆包（需已登录）；<b>桌面版</b>需您先自行打开豆包客户端。</div></div>
+              <div class="step"><span class="step-no">3</span><div class="step-txt"><b>记录坐标（仅首次）</b> —— 鼠标移到豆包对应位置按 <b>F6</b>，依次记录「输入框 / 下翻 / 复制」三个按钮位置。</div></div>
+              <div class="step"><span class="step-no">4</span><div class="step-txt"><b>点「开始」</b> —— 程序把豆包窗口切前台并最大化，按 D 层提示词模板把素材发给豆包，自动复制回复生成 B 层笔记，素材随之移入「02已处理」。</div></div>
+            </div>
+            <div class="hint" style="margin-bottom:4px"><b>素材发送方式</b></div>
+            <div class="hint" style="margin-top:2px">• <b>.md / .txt</b>：提取文字发送；<b>其他文件</b>（word / pdf / excel / ppt / 图片等）：整文件直发豆包（输入框支持粘贴附件，随后自动附上「发送格式」提示词）。</div>
+            <div class="notice"><span class="notice-ic">⚠</span><div>整理期间<b>不要动鼠标和键盘</b>，避免干扰豆包操作。</div></div>
+          </div>
+        </details>
 
         <div class="guide-toc">
+          <!-- 01 设置知识库路径 -->
           <details class="guide-item">
             <summary>01 · 设置知识库路径 <span class="guide-arrow">▾</span></summary>
-            <div class="guide-item-body">选一个空文件夹或新文件夹，程序会在里面自动创建「01未处理 / 02已处理 / 03知识提炼 / 04知识聚合 / 05规则模板」等标准结构。填好后点「保存位置」，再点「创建知识库」即可一键生成；也可直接点「打开该路径」在文件管理器里查看或新建。</div>
+            <div class="guide-item-body">
+              <p style="margin-bottom:6px">在此设置知识库的存放位置；程序会在所选文件夹内自动创建「01未处理 / 02已处理 / 03知识提炼 / 04知识聚合 / 05规则模板」等标准结构。</p>
+              <div><b>「路径输入框」</b> —— 填写知识库根目录（例如 <span class="mono">D:\我的知识库</span>），作为后续所有操作的基础路径。</div>
+              <div style="margin-top:6px"><b>「保存位置」</b> —— 把上方填写的路径保存为知识库根目录，界面状态随之更新。</div>
+              <div style="margin-top:6px"><b>「打开该路径」</b> —— 在文件管理器中打开当前填写的路径，可直接查看或新建文件夹。</div>
+              <div style="margin-top:6px"><b>「创建知识库」</b> —— 在所选路径下一次性生成标准目录结构；创建进度请看下方「05 运行日志」。</div>
+            </div>
           </details>
+
+          <!-- 02 待处理资料列表 -->
           <details class="guide-item">
             <summary>02 · 待处理资料列表 <span class="guide-arrow">▾</span></summary>
-            <div class="guide-item-body">把资料放进「01未处理」后，用「豆包自动整理」批量提炼成标准笔记并自动建立知识链接。支持选择文件夹 / 选择文件 / 直接拖入。</div>
-          </details>
-          <details class="guide-item">
-            <summary>03 · 豆包自动整理 <span class="guide-arrow">▾</span></summary>
             <div class="guide-item-body">
+              <p style="margin-bottom:6px">把原始素材放进「01未处理」后，在此查看与维护待整理的资料清单。</p>
               <details class="guide-sub">
-                <summary>轮询复制与超时 <span class="guide-arrow">▾</span></summary>
-                <div class="guide-sub-body">发送后程序会<b>轮询复制</b>：不断点复制按钮，直到剪贴板出现豆包的新回复才输出笔记；「等待豆包生成」数值×3 作<b>超时兜底</b>（默认 30 秒，超时按当前内容继续）。</div>
+                <summary class="guide-sub-title">添加资料 <span class="guide-arrow">▾</span></summary>
+                <div class="guide-sub-body">
+                  <div><b>「选择资料文件夹」</b> —— 选择整个文件夹批量导入，文件按相对子目录结构放入「01未处理」。</div>
+                  <div style="margin-top:6px"><b>「选择资料文件」</b> —— 多选文件直接放入「01未处理」。</div>
+                  <div style="margin-top:6px"><b>拖拽区</b> —— 把文件直接拖进虚线框即可导入（支持多文件）；同名文件自动改名不覆盖，隐藏文件与超过 50MB 的文件会被跳过。</div>
+                </div>
               </details>
               <details class="guide-sub">
-                <summary>坐标文件 <span class="guide-arrow">▾</span></summary>
-                <div class="guide-sub-body">坐标只需记录一次并保存为文件（可存多套，如"家用电脑"、"办公室"），下次直接用「使用该文件」切换即可，无需重新记录。</div>
-              </details>
-              <details class="guide-sub">
-                <summary>发送格式 <span class="guide-arrow">▾</span></summary>
-                <div class="guide-sub-body">「发送格式」是发给豆包的完整提示词，<b>{素材内容}</b> 处会自动替换为素材正文（文件直发时替换为文件名说明），保存后写回知识库 <b>05规则模板/</b> 目录。</div>
-              </details>
-              <details class="guide-sub">
-                <summary>B层笔记结构 <span class="guide-arrow">▾</span></summary>
-                <div class="guide-sub-body">B 层笔记的固定组成部分与拼接方式依据 D 层规范，<b>不可编辑</b>；豆包按「发送格式」提示词严格生成，程序侧仅负责解析一句话总结、组装文件名并保存。</div>
+                <summary class="guide-sub-title">列表管理 <span class="guide-arrow">▾</span></summary>
+                <div class="guide-sub-body">
+                  <div><b>「全选」复选框</b> —— 一键勾选 / 取消勾选列表中的全部文件。</div>
+                  <div style="margin-top:6px"><b>「删除所选」</b> —— 把勾选的文件移入回收站。</div>
+                  <div style="margin-top:6px"><b>「清空01未处理」</b> —— 清空该目录下的全部文件（需二次确认）。</div>
+                  <div style="margin-top:6px"><b>「刷新」</b> —— 重新扫描「01未处理」目录并同步列表（放入新素材后用它刷新）。</div>
+                  <div style="margin-top:6px"><b>「回收站」</b> —— 打开回收站窗口，可查看或恢复被删除的文件。</div>
+                </div>
               </details>
             </div>
           </details>
+
+          <!-- 03 豆包自动整理 -->
+          <details class="guide-item">
+            <summary>03 · 豆包自动整理 <span class="guide-arrow">▾</span></summary>
+            <div class="guide-item-body">
+              <p style="margin-bottom:6px">本模块是核心：把「01未处理」的素材交给豆包批量提炼成 B 层标准笔记，并自动建立知识链接。</p>
+              <details class="guide-sub">
+                <summary class="guide-sub-title">启动途径 <span class="guide-arrow">▾</span></summary>
+                <div class="guide-sub-body">
+                  <div><b>「网页版」</b> —— 默认方式；点「开始豆包整理」后自动打开浏览器访问豆包网页版（请确认浏览器已登录豆包）。</div>
+                  <div style="margin-top:6px"><b>「桌面版」</b> —— 需先自行打开豆包桌面客户端并保持可见，程序直接操作客户端窗口。</div>
+                </div>
+              </details>
+              <details class="guide-sub">
+                <summary class="guide-sub-title">坐标文件 <span class="guide-arrow">▾</span></summary>
+                <div class="guide-sub-body">
+                  <div><b>「坐标输入框」</b> —— 填写已保存的坐标文件路径。</div>
+                  <div style="margin-top:6px"><b>「使用该文件」</b> —— 加载填写的坐标文件并立即生效，无需重新记录。</div>
+                  <div style="margin-top:6px"><b>「坐标文件下拉」</b> —— 切换已保存的多套坐标（如“家用电脑”、“办公室”）。</div>
+                </div>
+              </details>
+              <details class="guide-sub">
+                <summary class="guide-sub-title">坐标记录（首次使用必做） <span class="guide-arrow">▾</span></summary>
+                <div class="guide-sub-body">
+                  <div class="guide-mini">
+                    <div class="guide-mini-title">「记录输入框坐标」</div>
+                    <div class="guide-mini-body">点击后按 <b>F6</b>，把鼠标移到豆包「输入框」位置完成记录；这是发送素材时文字输入的目标位置。</div>
+                  </div>
+                  <div class="guide-mini">
+                    <div class="guide-mini-title">「记录下翻坐标」</div>
+                    <div class="guide-mini-body">点击后按 <b>F6</b>，记录豆包回复区域「下翻」按钮的位置（用于滚动到最新回复）。</div>
+                  </div>
+                  <div class="guide-mini">
+                    <div class="guide-mini-title">「记录复制坐标」</div>
+                    <div class="guide-mini-body">点击后按 <b>F6</b>，记录豆包「复制」按钮的位置；程序通过轮询点击它来获取回复内容。</div>
+                  </div>
+                  <div class="guide-mini">
+                    <div class="guide-mini-title">「取消记录」</div>
+                    <div class="guide-mini-body">放弃本次正在进行的坐标记录（仅在记录过程中出现）。</div>
+                  </div>
+                </div>
+              </details>
+              <details class="guide-sub">
+                <summary class="guide-sub-title">坐标维护 <span class="guide-arrow">▾</span></summary>
+                <div class="guide-sub-body">
+                  <div><b>「生成坐标文件」</b> —— 把当前记录的坐标保存为文件，便于以后复用。</div>
+                  <div style="margin-top:6px"><b>「导入坐标文件」</b> —— 从本地选择 <span class="mono">.json</span> 坐标文件导入。</div>
+                  <div style="margin-top:6px"><b>「清除坐标」</b> —— 删除当前已记录的坐标。</div>
+                  <div style="margin-top:6px"><b>「测试鼠标模拟」</b> —— 按当前坐标做一次鼠标模拟，验证坐标是否准确。</div>
+                </div>
+              </details>
+              <details class="guide-sub">
+                <summary class="guide-sub-title">整理参数 <span class="guide-arrow">▾</span></summary>
+                <div class="guide-sub-body">
+                  <div class="guide-mini">
+                    <div class="guide-mini-title">「等待豆包生成」</div>
+                    <div class="guide-mini-body">每次发送素材后等待豆包回复的秒数（默认 30 秒）。程序会<b>轮询复制</b>——不断点复制按钮直到剪贴板出现新回复；该数值×3 作为<b>超时兜底</b>，超时按当前内容继续。</div>
+                  </div>
+                  <div class="guide-mini">
+                    <div class="guide-mini-title">「模拟点击循环次数」</div>
+                    <div class="guide-mini-body">本次整理最多处理的素材条数，填 <b>0</b> 表示全部处理。</div>
+                  </div>
+                  <div class="guide-mini">
+                    <div class="guide-mini-title">「自动匹配循环次数」</div>
+                    <div class="guide-mini-body">一键把「模拟点击循环次数」设为「01未处理」里的实际文件数，省去手动清点。</div>
+                  </div>
+                </div>
+              </details>
+              <details class="guide-sub">
+                <summary class="guide-sub-title">执行 <span class="guide-arrow">▾</span></summary>
+                <div class="guide-sub-body">
+                  <div><b>「打开知识提炼路径」</b> —— 在文件管理器中打开 B 层「03知识提炼」目录，查看已生成的笔记。</div>
+                  <div style="margin-top:6px"><b>「开始豆包整理」</b> —— 启动完整整理流程：切换豆包窗口到前台 → 按提示词发送素材 → 轮询复制回复 → 生成 B 层笔记并建立链接 → 素材移入「02已处理」。启动前请确认坐标已记录，且整理期间不要动鼠标键盘。</div>
+                  <div style="margin-top:6px"><b>「停止」</b> —— 整理过程中点击可请求立即停止（仅在运行时出现）。</div>
+                </div>
+              </details>
+              <details class="guide-sub">
+                <summary class="guide-sub-title">提示词与 B 层结构（折叠区） <span class="guide-arrow">▾</span></summary>
+                <div class="guide-sub-body">
+                  <div><b>「发送格式」折叠面板</b> —— 编辑发给豆包的完整提示词，<b>{素材内容}</b> 处会自动替换为素材正文（文件直发时替换为文件名说明）。</div>
+                  <div style="margin-top:6px"><b>「保存提示词格式」</b> —— 把当前提示词写回知识库「05规则模板/」目录。</div>
+                  <div style="margin-top:6px"><b>「B层只读参考」折叠面板</b> —— 展示 B 层笔记的固定组成与拼接规范（依据 D 层规范，不可编辑），只读参考。</div>
+                </div>
+              </details>
+            </div>
+          </details>
+
+          <!-- 04 高级设置 -->
           <details class="guide-item">
             <summary>04 · 高级设置 <span class="guide-arrow">▾</span></summary>
-            <div class="guide-item-body">开启调试模式后，豆包整理将<b>跳过链接引擎 / 处理报告</b>；点「复位」可撤销调试期间的全部操作：删除新建的笔记/日志，并把已处理素材移回 <b>01未处理</b>。调试期请用网页「豆包自动整理」，勿用命令行 sync（会污染既有笔记的相关笔记区块）。</div>
+            <div class="guide-item-body">
+              <div><b>「开启调试模式」</b> —— 勾选后豆包整理会<b>跳过链接引擎 / 处理报告</b>，便于观察中间过程。</div>
+              <div style="margin-top:6px"><b>「复位」</b> —— 撤销调试期间的全部操作：删除新建的笔记/日志，并把已处理素材移回「01未处理」（仅在调试模式下出现）。调试期请用网页「豆包自动整理」，勿用命令行 sync（会污染既有笔记的相关笔记区块）。</div>
+            </div>
+          </details>
+
+          <!-- 05 运行日志与退出 -->
+          <details class="guide-item">
+            <summary>05 · 运行日志与退出 <span class="guide-arrow">▾</span></summary>
+            <div class="guide-item-body">
+              <div><b>「嵌入」</b> —— 把悬浮的日志窗口嵌入主页面原位固定（再次点击可恢复悬浮）。</div>
+              <div style="margin-top:6px"><b>「最小化」</b> —— 最小化日志窗口，日志仍在后台持续更新（再次点击「还原」恢复）。</div>
+              <div style="margin-top:6px"><b>「退出自动化知识库系统」</b> —— 退出后端服务并关闭页面（位于页面底部）。</div>
+            </div>
           </details>
         </div>
       </div>
@@ -601,8 +743,8 @@
     <h2><span class="cat-no">01</span>设置知识库路径</h2>
     <div class="row">
       <input type="text" id="root" placeholder="例如：D:\我的知识库" style="flex:1">
-      <button class="btn ghost" id="btnSetRoot">保存位置</button>
-      <button class="btn ghost" id="btnOpenPath">打开该路径</button>
+      <button class="btn" id="btnSetRoot">保存位置</button>
+      <button class="btn" id="btnOpenPath">打开该路径</button>
     </div>
     <div class="row" style="margin-top:10px">
       <button class="btn" id="btnInit">创建知识库</button>
@@ -628,10 +770,10 @@
         <span id="inboxCount">共 0 个文件</span>
       </span>
       <span class="row" style="gap:8px">
-        <button class="btn soft" id="btnDelSel">删除所选</button>
-        <button class="btn soft" id="btnClearInbox">清空01未处理</button>
-        <button class="btn soft" id="btnRefreshInbox">刷新</button>
-        <button class="btn soft" id="btnTrash">回收站</button>
+        <button class="btn" id="btnDelSel">删除所选</button>
+        <button class="btn" id="btnClearInbox">清空01未处理</button>
+        <button class="btn" id="btnRefreshInbox">刷新</button>
+        <button class="btn" id="btnTrash">回收站</button>
       </span>
     </div>
     <div class="inbox-list" id="inboxList">
@@ -652,7 +794,7 @@
     <div class="btn-group">
       <span class="grp-title">坐标文件</span>
       <input type="text" id="coordFile" placeholder="豆包坐标" style="min-width:120px">
-      <button class="btn ghost" id="btnCoordUse">使用该文件</button>
+      <button class="btn" id="btnCoordUse">使用该文件</button>
       <select id="coordFileList" style="min-width:160px"></select>
     </div>
     <div class="btn-group">
@@ -660,14 +802,14 @@
       <button class="btn" id="btnRecInput">记录输入框坐标</button>
       <button class="btn" id="btnRecScroll">记录下翻坐标</button>
       <button class="btn" id="btnRecCopy">记录复制坐标</button>
-      <button class="btn soft" id="btnCoordCancel" style="display:none">取消记录</button>
+      <button class="btn" id="btnCoordCancel" style="display:none">取消记录</button>
     </div>
     <div class="btn-group">
       <span class="grp-title">坐标维护</span>
-      <button class="btn soft" id="btnCoordExport">生成坐标文件</button>
-      <button class="btn soft" id="btnCoordImport">导入坐标文件</button>
-      <button class="btn soft" id="btnCoordClear">清除坐标</button>
-      <button class="btn soft" id="btnDoubaoTest">测试鼠标模拟</button>
+      <button class="btn" id="btnCoordExport">生成坐标文件</button>
+      <button class="btn" id="btnCoordImport">导入坐标文件</button>
+      <button class="btn" id="btnCoordClear">清除坐标</button>
+      <button class="btn" id="btnDoubaoTest">测试鼠标模拟</button>
     </div>
     <div class="btn-group">
       <span class="grp-title">整理参数</span>
@@ -679,13 +821,13 @@
         <input type="number" id="dbMax" min="0" style="width:70px;min-width:0" value="1">
         次（0=全部处理）
       </label>
-      <button class="btn soft" id="btnDbAutoMatch" title="把循环次数设为「未处理资料」里的文件数">自动匹配</button>
+      <button class="btn" id="btnDbAutoMatch" title="把循环次数设为「未处理资料」里的文件数">自动匹配循环次数</button>
     </div>
     <div class="btn-group" style="justify-content:flex-end">
       <span class="grp-title">执行</span>
-      <button class="btn ghost" id="btnOpenKnowledgePath">打开知识提炼路径</button>
+      <button class="btn" id="btnOpenKnowledgePath">打开知识提炼路径</button>
       <button class="btn go" id="btnDoubaoStart" style="min-width:140px">开始豆包整理</button>
-      <button class="btn danger" id="btnDoubaoStop" style="display:none">停止</button>
+      <button class="btn" id="btnDoubaoStop" style="display:none">停止</button>
     </div>
     <input type="file" id="pickCoord" accept=".json,application/json" style="display:none">
 
@@ -718,7 +860,7 @@
       <div style="margin-bottom:4px"><label class="form-label">调试模式</label></div>
       <div class="row">
         <label style="font-size:14px;margin-right:16px;display:flex;align-items:center;gap:6px"><input type="checkbox" id="debugEnabled">开启调试模式</label>
-        <button class="btn danger" id="btnDebugReset" style="display:none">复位</button>
+        <button class="btn" id="btnDebugReset" style="display:none">复位</button>
       </div>
     </div>
   </div>
@@ -738,7 +880,7 @@
   </div>
 
   <footer>
-    <button class="btn soft" id="btnExit">退出自动化知识库系统</button>
+    <button class="btn" id="btnExit">退出自动化知识库系统</button>
     <p>所有资料只保存在您自己的电脑上，本程序不上传任何数据。</p>
   </footer>
   </div>
@@ -749,7 +891,7 @@
   <div class="modal" role="dialog" aria-modal="true" aria-labelledby="trashTitle">
     <div class="modal-head">
       <h3 id="trashTitle">回收站</h3>
-      <button class="btn ghost" id="btnTrashClose">关闭</button>
+      <button class="btn" id="btnTrashClose">关闭</button>
     </div>
     <div class="modal-body">
       <div class="inbox-head">
@@ -758,8 +900,8 @@
           <span id="trashCount">共 0 个文件</span>
         </span>
         <span class="row" style="gap:8px">
-          <button class="btn soft" id="btnTrashRestore">恢复所选</button>
-          <button class="btn danger" id="btnTrashClear">清空回收站</button>
+          <button class="btn" id="btnTrashRestore">恢复所选</button>
+          <button class="btn" id="btnTrashClear">清空回收站</button>
         </span>
       </div>
       <div class="inbox-list" id="trashList">
@@ -1507,7 +1649,7 @@ $("btnDoubaoStop").onclick = async () => {
   toast("已请求停止豆包整理");
 };
 
-// 自动匹配：把模拟点击循环次数设为豆包实际会处理的素材数
+// 自动匹配循环次数：把模拟点击循环次数设为豆包实际会处理的素材数
 // （01未处理，与 refine_loop 扫描源一致）
 $("btnDbAutoMatch").onclick = async () => {
   const r = await api("/api/doubao/materials");
