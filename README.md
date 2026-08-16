@@ -1,48 +1,52 @@
 # Obsidian 知识库自动化搭建工具（obsidian-kb）
 
-参考「兵哥知识库管理系统」（LLM Wiki + 卢曼卡片盒四层架构）设计的通用化、可配置、
-幂等的 Obsidian 知识库自动化程序：**自动建库 → 批量导入归类 → 自动打标 → 自动双链
-→ 生成索引笔记 → 输出处理报告**，支持一次性执行与命令行定时同步两种模式。
+一个采用卢曼卡片盒（Zettelkasten）式四层架构设计的通用化、可配置、幂等的 Obsidian 知识库自动化程序：**自动建库 → 批量导入归类 → 自动打标 → 自动双链 → 生成索引笔记 → 输出处理报告**，支持一次性执行与定时同步两种模式。
 
-> 设计理念（对齐兵哥）：让 AI 做 AI 擅长的事，让程序做程序擅长的事，让人做人擅长的事。
+> **设计理念**：让 AI 做 AI 擅长的事，让程序做程序擅长的事，让人做人擅长的事。
 > 程序默认只自动化 A→B 层，绝不触碰 C 层（你的创作空间）。
 
-## 🖥 图形操作窗口（轻度用户首选）
+## 目录
 
-**双击「launch-kb-assistant.bat」**，浏览器自动弹出中文按钮界面，全部操作一键完成，
-无需输入任何命令：
+- [核心特性](#核心特性)
+- [图形操作窗口（轻度用户首选）](#图形操作窗口轻度用户首选)
+- [命令行快速开始](#命令行快速开始)
+- [命令一览](#命令一览)
+- [架构概览](#架构概览)
+- [目录与文件清单](#目录与文件清单)
+- [模块职责](#模块职责)
+- [四层目录结构](#四层目录结构)
+- [配置说明](#配置说明)
+- [数据流与幂等机制](#数据流与幂等机制)
+- [扩展开发](#扩展开发)
+- [排错速查](#排错速查)
+- [环境要求](#环境要求)
+- [许可证](#许可证)
 
-- **知识库放在哪里** —— 填写知识库文件夹路径：点「保存位置」保存、点「创建知识库」一键生成标准结构、
-  点「打开该路径」在文件管理器查看/新建
-- **未处理资料（01未处理）** —— 点「选择资料文件夹 / 文件」或直接把文件<b>拖入虚线框</b>自动放入
-  01未处理（支持多文件；同名文件自动改名 `名字_时间戳.扩展名`，不覆盖已有文件；拖入文件夹会
-  被跳过并提示，请改用「选择资料文件夹」）；列表支持全选/勾选删除/清空
-  （删除的文件移入知识库内「回收站」文件夹，可在文件管理器中找回）
-- **提示词格式配置** —— 在「豆包自动整理」区块可自由编辑「发送格式」（发给豆包的提示词，
-  `{素材内容}` 处自动替换为素材正文），保存后写回知识库 `05规则模板/` 目录；其下方另有
-  「B层知识提炼文件的生成逻辑与结构（只读参考）」只读文本框，展示 B 层笔记的组成部分、
-  拼接方式与完整生成链路（A→B），不可编辑
-- **豆包自动整理** —— 把素材放进知识库的 **01未处理** 文件夹，先选「启动途径」：
-  - **网页版（默认）**：点「开始」自动用本机浏览器（Edge/Chrome/Firefox）打开豆包网页
-    （需已登录；显式调用浏览器 exe，不会误开其他关联应用），坐标按网页版浏览器窗口记录；
-  - **桌面版(exe)**：需先自行打开豆包客户端，程序不自动启动，坐标按桌面客户端窗口记录。
-  然后记录豆包三个按钮坐标（输入框/下翻/复制，鼠标移到位置按 F6），点「开始」自动把
-  豆包窗口切到前台并最大化，按固定时序执行：点击输入框 → 0.5s → 粘贴素材+提示词并发送 →
-  等待豆包新回复（轮询复制，生成完才复制到新内容）→ 生成 B 层标准笔记，素材随之移入
-  「02已处理」；处理条数可设、可随时停止（界面按钮或 Esc）。**网页版与桌面版坐标不通用**，
-  同一坐标文件内分 `desktop` / `web` 两套，系统按所选途径自动读取对应套；旧格式坐标文件
-  首次加载自动归为「桌面版」。**坐标文件可自定义名称、可导入导出**（支持保存多套坐标如
-  "家用电脑"、"办公室"，切换即用，无需重复记录）；「测试鼠标模拟」按当前途径坐标执行
-  诊断（无坐标文件时提示先记录或导入）
-- **高级设置（调试模式）** —— 开启后豆包整理跳过链接引擎/处理报告，并记录各目录快照；
-  点「复位」可撤销调试期间的全部操作：删除新建的笔记/日志，把已处理素材移回 01未处理
-- 实时运行日志 + 最近处理结果一目了然，点「退出知识库助手」即可停止
+## 核心特性
+
+1. **自动建库**：一键生成标准目录、Obsidian 基础配置（附件路径等）、提示词模板、含双链的示范笔记，用 Obsidian 打开即可预览知识图谱。
+2. **批量导入归类**：`01未处理`（可配置 `import.extra_sources` 增加更多源）内的 `.md/.txt/.pdf/.docx`、图片自动归类——PDF 默认提取正文生成笔记、原件归档；图片直接进附件；txt 自动转 Markdown。
+3. **规范化 frontmatter**：`title / tags / created / updated / source / category / status`，已存在笔记保留用户字段、只刷新 `updated`，绝不覆盖手工归类。
+4. **自动打标**：配置文件中的「关键词 → 标签」规则表 + 正文 `#标签` 提取，自动去重限量。
+5. **双链 + 知识图谱**：**关键词是链接的唯一依据**——共享 ≥3 个相同关键词即建链（阈值可调）、每篇最多保留前 8 条强相关链接、新增笔记自动链接其自身原始素材；为标签/分类生成 B 层索引笔记（双向链接回链），Obsidian 图谱直接可见。
+6. **日志与报告**：每次运行输出统计（扫描/导入/新增/跳过/失败/标签/关联/索引），生成 Markdown《处理报告》并打印明细。
+7. **幂等与容错**：内容 SHA-256 注册表去重，重复运行不重复导入；文件名冲突自动加序号；编码自动探测（UTF-8/GBK）；单文件失败不阻断整体；`--dry-run` 安全演练。
+
+## 图形操作窗口（轻度用户首选）
+
+**双击「launch-kb-assistant.bat」**，浏览器自动弹出中文按钮界面，全部操作一键完成，无需输入任何命令：
+
+- **知识库放在哪里** —— 填写知识库文件夹路径：点「保存位置」保存、点「创建知识库」一键生成标准结构、点「打开该路径」在文件管理器查看/新建。
+- **未处理资料（01未处理）** —— 点「选择资料文件夹 / 文件」或直接把文件**拖入虚线框**自动放入 01未处理（支持多文件；同名文件自动改名 `名字_时间戳.扩展名`，不覆盖已有文件；拖入文件夹会被跳过并提示，请改用「选择资料文件夹」）；列表支持全选/勾选删除/清空（删除的文件移入知识库内「回收站」文件夹，可在文件管理器中找回）。
+- **提示词格式配置** —— 在「豆包自动整理」区块可自由编辑「发送格式」（发给 AI 的提示词，`{素材内容}` 处自动替换为素材正文），保存后写回知识库 `05规则模板/` 目录；其下方另有「B层知识提炼文件的生成逻辑与结构（只读参考）」只读文本框，展示 B 层笔记的组成部分、拼接方式与完整生成链路（A→B），不可编辑。
+- **AI 自动整理** —— 把素材放进知识库的 **01未处理** 文件夹，先选「启动途径」（网页版 / 桌面版 exe），再记录豆包三个按钮坐标（输入框/下翻/复制，鼠标移到位置按 F6），点「开始」自动把窗口切到前台并最大化，按固定时序执行：点击输入框 → 0.5s → 粘贴素材+提示词并发送 → 等待新回复（轮询复制，生成完才复制到新内容）→ 生成 B 层标准笔记，素材随之移入「02已处理」；处理条数可设、可随时停止（界面按钮或 Esc）。
+- **高级设置（调试模式）** —— 开启后整理跳过链接引擎/处理报告，并记录各目录快照；点「复位」可撤销调试期间的全部操作：删除新建的笔记/日志，把已处理素材移回 01未处理。
+- 实时运行日志 + 最近处理结果一目了然，点「退出知识库助手」即可停止。
 
 > 界面文件：`gui_server.py`（本地服务）+ `gui_index.html`（界面）。
-> 仅用 Python 标准库，数据只在本机 127.0.0.1 流转，不上传任何内容。
+> 仅用 Python 标准库，数据只在本机 `127.0.0.1` 流转，不上传任何内容。
 > 服务端口自动选择（默认 8765，被占用时自动换端口，实际地址记录在 `gui_url.txt`）。
-> 豆包坐标存于程序目录 `豆包坐标.json`（格式：`{"desktop": {坐标...}, "web": {坐标...}}`，
-> 两套坐标互相独立），整理逻辑对齐兵哥「批量素材提炼 A→B」。
+> 豆包坐标存于程序目录 `豆包坐标.json`（格式：`{"desktop": {坐标...}, "web": {坐标...}}`，两套坐标互相独立）。
 
 ## 命令行快速开始
 
@@ -56,9 +60,9 @@ python run.py init --root D:\我的知识库
 # 2. 把要整理的资料丢进 <库>/01未处理/，然后一次性同步
 python run.py sync --root D:\我的知识库
 
-# 3. 定时自动同步（命令行方式，GUI 已不再提供）
-python run.py watch --interval 30        # 内置循环常驻
-python run.py schedule --install --time 09:00   # Windows 计划任务（每日 09:00）
+# 3. 定时自动同步（命令行方式）
+python run.py watch --interval 30              # 内置循环常驻
+python run.py schedule --install --time 09:00  # Windows 计划任务（每日 09:00）
 
 # 4. 查看处理报告
 python run.py report --root D:\我的知识库
@@ -79,11 +83,192 @@ python run.py report --root D:\我的知识库
 
 所有命令均支持 `--config <路径>` 指定配置文件（默认查找当前目录 `kbconfig.yaml` / `.json`）。
 
-## 知识库结构（兵哥四层架构）
+## 架构概览
+
+程序采用「**配置驱动 + 分层模块 + 双入口（CLI / GUI）**」结构。所有业务逻辑都在 `obsidian_kb/` 包内，两个入口（`run.py` 命令行、`gui_server.py` 图形服务）只是不同调度外壳，最终都调用同一批核心模块，保证行为一致。
+
+```
+                         ┌─────────────────────────────────────────────┐
+                         │                 入口层 (Entry)                │
+                         │   run.py ──► cli.py           gui_server.py    │
+                         │   (命令行 argparse)           (本地 HTTP 服务)  │
+                         └───────────┬───────────────────────┬──────────┘
+                                     │                       │
+                         ┌───────────▼───────────────────────▼──────────┐
+                         │            配置层 (Config)                     │
+                         │   config.py：load_config / deep_merge /        │
+                         │   validate_config / resolve_vault_root         │
+                         │   数据源：kbconfig.yaml(.json) ⊕ 内置默认值      │
+                         └───────────┬───────────────────────┬──────────┘
+                                     │                       │
+        ┌────────────────────────────▼──────────┐   ┌────────▼─────────────────────┐
+        │           核心处理管线 (Pipeline)        │   │   自动化层 (Automation)        │
+        │  vault → importer → tagger → linker →   │   │  doubao_automation.py         │
+        │  frontmatter → registry → logger        │   │  （豆包键鼠模拟 A→B 提炼）      │
+        └────────────────────────┬───────────────┘   └────────┬─────────────────────┘
+                                 │                              │
+                         ┌───────▼──────────────────────────────▼───────┐
+                         │   支撑/基础设施 (Infra)                        │
+                         │  scheduler.py（定时）  logger.py（日志报告）     │
+                         │  frontmatter.py（元数据）  registry.py（幂等）   │
+                         └───────────────────────────────────────────────┘
+```
+
+### 目录与文件清单
+
+```
+obsidian-knowledge-builder/
+├── run.py                      # CLI 总入口（仅转发到 cli.main）
+├── gui_server.py               # GUI 本地服务端（HTTP + ThreadingHTTPServer）
+├── gui_index.html              # GUI 前端界面
+├── launch-kb-assistant.bat     # 双击启动 GUI（自动开浏览器）
+├── kbconfig.yaml               # 默认配置（YAML，可改；删键即回退默认值）
+├── requirements.txt            # 依赖清单
+├── demo/                       # 演示/回归脚本（backfill、migrate、e2e、浏览器上传修复等）
+└── obsidian_kb/
+    ├── __init__.py             # 版本号（__version__ = "1.0.0"）+ 设计理念说明
+    ├── cli.py                  # 命令行接口与全部子命令实现
+    ├── config.py               # 配置加载 / 校验 / 合并
+    ├── vault.py                # 建库（目录结构 + Obsidian 配置 + 模板）
+    ├── importer.py             # 批量导入归类（扫描/去重/提取/写笔记/归位）
+    ├── tagger.py               # 关键词规则自动打标
+    ├── linker.py               # 双链关联引擎 + 索引笔记生成
+    ├── frontmatter.py          # YAML frontmatter 解析/生成/更新
+    ├── registry.py             # 幂等注册表（SHA-256 去重）
+    ├── logger.py               # 日志系统 + 处理报告
+    ├── scheduler.py            # 定时同步（watch 循环 / Windows 计划任务）
+    └── doubao_automation.py    # 豆包键鼠自动化（Windows 专用，ctypes）
+```
+
+## 模块职责
+
+| 模块 | 一句话职责 |
+| --- | --- |
+| `cli.py` | 命令行总编排，把子命令串成管线 |
+| `config.py` | 配置的唯一真相来源（默认⊕用户，深合并） |
+| `vault.py` | 一键建库/补齐，写目录、Obsidian 配置、模板 |
+| `importer.py` | 扫描去重归类提取，把素材变成 B 层笔记 |
+| `tagger.py` | 关键词规则打标 |
+| `linker.py` | 关键词建链 + 索引笔记（双链引擎） |
+| `frontmatter.py` | YAML 元数据解析/生成，保留用户字段 |
+| `registry.py` | SHA-256 幂等注册表 |
+| `logger.py` | 日志 + Markdown 处理报告 |
+| `scheduler.py` | watch 循环 / Windows 计划任务 |
+| `doubao_automation.py` | 豆包键鼠模拟 A→B 提炼（Windows） |
+| `gui_server.py` | 本地 HTTP 服务，图形界面后端 |
+
+### 入口层
+
+- **`run.py`**：仅一行 `sys.exit(main())`，把控制权交给 `cli.main`。
+- **`cli.py`**：命令行接口与核心编排者。解析 `init/import/link/sync/watch/schedule/report` 子命令，内联 `_sync()` 把「导入→双链→索引→报告」串成一条管线，每个子命令对应一个 `cmd_*` 函数。支持 `--config`、`--root`、`--dry-run`、`--no-move`、`--no-dedupe` 全局/局部参数。
+
+### 配置层 —— `config.py`
+
+- **唯一数据源策略**：`load_config()` = 内置 `DEFAULT_CONFIG` **深合并**用户配置（YAML 优先，JSON 兜底），未声明的键全部用默认值。
+- 支持格式：`.yaml/.yml`（需 PyYAML，缺失则报错提示）与 `.json`；自动探测 `kbconfig.yaml` 等默认文件名（`find_default_config`）。
+- `validate_config()`：校验 9 大区块存在且为对象，且 `structure` 必须含未处理/已处理/B/C/D/附件/日记等关键目录。
+- `resolve_vault_root()`：库根解析——`vault.root` 优先，否则用 `<cwd>/<vault.name>`。
+- `DEFAULT_CONFIG` 集中了四层架构目录、标签规则、链接阈值（共享≥3 关键词、每篇≤8 链接）、命名规范、定时参数等全部可调项。
+
+### 建库层 —— `vault.py`
+
+`init_vault(cfg, root, force)` 负责「从无到有」或「补齐」知识库：
+
+1. 按 `structure` 顺序创建目录（01未处理…07日记）。
+2. 写 `.obsidian/app.json`（附件目录、新笔记位置等 Obsidian 基础设置）。
+3. 写 **D 层规则模板**：`05规则模板/豆包知识提炼提示词.md`（用户可随时改，程序每次读最新）。
+4. 写库 `README.md` 与 B 层 3 篇示范笔记（含 `[[双链]]`，供图谱预览）、日记模板。
+5. **空库保护**：若目录已有内容（非 `.obsidian`），仅补齐缺失目录、绝不覆盖用户文件；`--force` 才覆盖模板。
+6. **幂等**：`_write_if_missing()` 默认跳过已存在文件。
+
+### 导入层 —— `importer.py`（最核心的处理模块）
+
+`run_import()` 流程（扫描 → 哈希去重 → 归类 → 打标 → 生成 frontmatter → 写笔记 → 源文件归位 → 登记注册表 → 日志）：
+
+- **扫描源**：`import.inbox`（默认 01未处理）+ `extra_sources`；`_iter_files` 递归扫描，跳过隐藏目录/日志目录，支持 `max_depth`。
+- **类型分流**：
+  - 附件类（图片等 `attachment_exts`）→ 直接归档 `06附件/`。
+  - 文档类 `.md/.txt` → 内容即正文（txt 转 Markdown，剥离旧 frontmatter 由程序重建）。
+  - `.pdf` → `pdf_mode=extract` 提取正文（PyMuPDF 优先，pypdf 回退），提取失败或无正文则归档。
+  - `.docx` → `python-docx` 提取正文，失败则归档。
+- **幂等去重**：`registry.hash_file()` 计算 SHA-256，`dedupe_by_hash` 开启时重复内容直接跳过。
+- **打标**：实例化 `Tagger`，根据文件名+正文生成标签。
+- **写笔记**：`build_note_name`（日期前缀+规范化+冲突加序号）、`_write_note_atomic`（先写 `.tmp` 再 `os.replace`，防半截文件）、`frontmatter.build_frontmatter` 组装元数据。
+- **归位**：源文件 `_move_safe` 移入 02已处理（或 06附件），冲突自动加时间戳后缀。
+- **登记**：`registry.mark()` 记录 `哈希→笔记/源` 映射。
+- **容错**：单文件失败不阻断整体，`--dry-run` 只演练不写文件。
+
+### 打标层 —— `tagger.py`
+
+`Tagger` 类实现「关键词→标签」规则引擎：
+
+- 规则表来自 `tags.rules`（每条 `{tag, keywords}`）。
+- 命中判定：文件名（权重最高）→ 正文前 500 字 → 全文，子串匹配（ASCII 部分忽略大小写）。
+- 可选从正文提取 `#hashtag`（`HASHTAG_RE` 正则）。
+- 按命中次数降序，保留 `max_tags`（默认 10）个，自动去重。
+
+### 双链层 —— `linker.py`（双链规则引擎的核心）
+
+`run_linking()` + `generate_indexes()`，严格按「**关键词是链接的唯一依据**」：
+
+- `collect_notes()`：收集 B 层（可选含 C 层）笔记，构建 `NoteInfo`，关键词来源 = 正文 `**关键词**：` 行 + frontmatter 关键词/tags + tags，全转小写去重。
+- **建链规则**：关键词倒排索引 → 共享关键词数 ≥ `min_keywords`（默认 3）即建链 → 按共享数降序，每篇最多 `max_links_per_note`（默认 8）条。
+- **三类链接**（自动追加到笔记尾部「## 双向链接」区块）：
+  1. 原始素材回链 `- [原始素材](相对路径)`（`frontmatter.source` 优先，注册表回退，占 1 名额）。
+  2. 相关笔记互链 `- [[笔记名]] — 共享关键词：交集`。
+  3. 索引笔记链接（不受 8 条限制，每命中一个关键词/分类值一条）。
+- **幂等**：只追加缺失链接，已存在链接不重复写；变更后 `touch_updated()` 刷新 `updated` 字段。
+- `generate_indexes()`：为每个关键词/分类值生成 `索引_<关键词>.md` / `索引_分类_<分类值>.md`（`# 索引：主题` + `- [[B层笔记]]` 列表，无 frontmatter），与 B 层互相双链。
+- 约束：默认只处理 B 层，C 层「只读不写」，程序不碰 C 层。
+
+### 元数据层 —— `frontmatter.py`
+
+- `parse_frontmatter()` / `build_frontmatter()`：YAML frontmatter 解析与生成；YAML 不可用时回退轻量文本解析器（`_parse_fm_fallback`），保证工具始终可用。
+- `ensure_frontmatter()`：**保留用户手写字段**（如 aliases/author），只合并/更新 title/tags/created/updated 等规范字段，`created` 仅缺失时写，`updated` 每次刷新。
+- `read_text_auto()` / `write_text_auto()`：自动探测 UTF-8/GBK 编码，统一 `\n` 换行，`newline="\n"` 防 Windows 双回车。
+
+### 幂等层 —— `registry.py`
+
+- `Registry` 以 `.kb_registry.json` 记录「内容 SHA-256 → 已导入状态」。
+- `hash_file()` 分块读取支持大文件；`contains/mark/get/all_entries` 供导入与链接引擎查询。
+- **损坏自愈**：加载失败自动重建为空表，不阻断流程。
+- 保证：同一内容重复运行不重复导入；同名不同内容正常处理（文件名冲突加序号）。
+
+### 日志报告层 —— `logger.py`
+
+- `Report` 类收集运行统计：扫描数、导入数、新增笔记、更新笔记、归档附件、跳过（重复）、失败、标签计数、新增双链、关联关系、错误与逐条明细。
+- `setup_logging()`：控制台 INFO（统一 UTF-8 规避 Windows 中文乱码）+ 文件 DEBUG（`处理日志/kb_YYYYMMDD.log`）。
+- `write_report()`：输出 Markdown《处理报告》，同时写 `处理报告_时间戳.md` 与最新 `处理报告.md`，分「运行统计 / 自动标签 / 关联关系 / 处理明细 / 错误」五段。
+
+### 调度层 —— `scheduler.py`
+
+- `watch_loop()`：程序常驻后台，按 `scheduler.interval_minutes`（默认 30）轮询执行 sync，Ctrl+C 退出。
+- `install_task()/uninstall_task()`：生成 `run_sync.bat`（chcp 65001 + 调用 sync），通过 `schtasks` 注册/卸载 Windows 每日计划任务（非 Windows 时给 crontab 提示）。
+
+### 自动化层 —— `doubao_automation.py`（Windows 专用）
+
+零第三方依赖，纯 `ctypes` 调用 Win32（user32/kernel32/advapi32）实现豆包桌面/网页版键鼠模拟，实现「批量素材提炼 A→B」：
+
+- **坐标体系**：用户按 F6 记录「输入框/下翻箭头/复制按钮」三坐标，按启动途径（web/desktop）分两套存于 `豆包坐标.json`。
+- **核心循环 `refine_loop()`**：
+  1. 扫描 01未处理素材 → 2. `build_prompt()` 组装提示词（GUI send_format → D层 `.md` → 内置默认，`{素材内容}` 占位替换）→ 3. 置前并最大化豆包窗口 → 4. 点击输入框→粘贴(提示词+素材)/文件直发→回车发送 → 5. 清空剪贴板后轮询「点复制→读剪贴板」等待新回复（`_wait_new_reply`，超时兜底）→ 6. `parse_refined_note()` 去代码块、提一句话总结 → 7. 存 B 层笔记、素材移 02已处理、登记注册表。
+- 支持文本与文件直发（CF_HDROP 剪贴板）、失败重试一次、超大文件（>50MB）跳过、Esc/停止信号中断。
+- `diagnostic()`：环境诊断（管理员权限、豆包窗口、UIPI 权限冲突提示、坐标与鼠标模拟测试）。
+- 关键细节：显式声明所有 Win32 函数 `argtypes/restype`（64 位下 HANDLE/指针若按 int 截断会崩溃，代码注释中有详细说明）。
+
+### GUI 层 —— `gui_server.py` + `gui_index.html`
+
+- 本地 `ThreadingHTTPServer`（127.0.0.1，默认端口 8765，被占用自动换端口，地址写 `gui_url.txt`），**仅用 Python 标准库，数据不出本机**。
+- 全局状态 `_state` / `_coords` / `_busy` / `_doubao_*` 等在线程间协调；`_GuiLogHandler` 把子线程日志转发到界面缓冲。
+- 提供 ~25 个 HTTP 接口（`/api/status`、`/api/init`、`/api/upload`、`/api/prompts`、`/api/debug/*`、`/api/trash/*`、豆包 `/api/doubao/*` 等），内部均复用 `obsidian_kb` 核心模块与 `doubao_automation`。
+- 提炼完成后同样调用 `linker.run_linking()` + `generate_indexes()`，与 CLI 行为一致。
+- 调试模式（`/api/debug/toggle`）记录各目录快照，可「复位」撤销调试期间操作。
+
+## 四层目录结构
 
 ```
 <库根>/
-├── 01未处理/                 # 统一导入源：把要整理的资料丢进来（豆包整理与 CLI 命令都扫这里）
+├── 01未处理/                 # 统一导入源：把要整理的资料丢进来（AI 整理与 CLI 命令都扫这里）
 ├── 02已处理/                 # 已导入/已提炼的源文件归位
 ├── 03知识提炼/               # B 层：标准化笔记（自动打标 + 自动双链）
 ├── 04知识聚合/               # C 层：你的创作空间（程序不碰）
@@ -94,47 +279,64 @@ python run.py report --root D:\我的知识库
 └── .kb_registry.json      # 幂等注册表（内容哈希 → 已导入记录）
 ```
 
-## 核心特性
+**B 层笔记标准 frontmatter 字段**：`title / tags / created / updated / source / category / status`（已存在笔记只刷新 `updated`，绝不覆盖手工归类）。
 
-1. **自动建库**：一键生成标准目录、Obsidian 基础配置（06附件路径等）、D 层提示词模板、
-   含双链的示范笔记，用 Obsidian 打开即可预览知识图谱。
-2. **批量导入归类**：`01未处理`（可配置 `import.extra_sources` 增加更多源）内的 .md/.txt/.pdf/.docx/图片 自动归类——
-   PDF 默认提取正文生成笔记、原件归档06附件；图片直接进06附件；txt 自动转 Markdown。
-3. **规范化 frontmatter**：`title / tags / created / updated / source / category / status`，
-   已存在笔记保留用户字段、只刷新 `updated`，绝不覆盖手工归类。
-4. **自动打标**：配置文件中的「关键词 → 标签」规则表 + 正文 `#标签` 提取，自动去重限量。
-5. **双链 + 知识图谱**（按兵哥规则模板）：**关键词是链接的唯一依据**——共享
-   ≥3 个相同关键词即建链（阈值可调）、每篇最多保留前 8 条强相关链接、新增笔记
-   自动链接其自身原始素材；为标签/分类生成 B 层索引笔记（双向链接回链），Obsidian 图谱直接可见。
-6. **日志与报告**：每次运行输出统计（扫描/导入/新增/跳过/失败/标签/关联/索引），
-   生成 Markdown《处理报告》并打印明细。
-7. **幂等与容错**：内容 SHA-256 注册表去重，重复运行不重复导入；文件名冲突自动加序号；
-   编码自动探测（UTF-8/GBK）；单文件失败不阻断整体；`--dry-run` 安全演练。
+## 配置说明（kbconfig.yaml）
 
-## 配置文件（kbconfig.yaml）
-
-主要可调参数：
-
-| 区块 | 参数 | 说明 |
+| 区块 | 关键参数 | 作用 |
 | --- | --- | --- |
 | `vault` | `name` / `root` | 库名 / 库根路径 |
-| `structure` | 键值对 | 目录结构（自由增删，键为逻辑名，值为相对路径） |
-| `import` | `pdf_mode` / `inbox` / `dedupe_by_hash` | PDF 提取或归档 / 导入源 / 幂等开关 |
-| `tags.rules` | `tag` + `keywords` | 关键词→标签 规则表（示例已内置，可增删） |
-| `linking` | `max_links_per_note` / `gen_index` / `include_c` | 双链策略参数 |
-| `naming` | `date_prefix` / `sanitize` | 命名规范 |
-| `scheduler` | `interval_minutes` / `task_name` / `task_time` | 定时参数 |
+| `structure` | 逻辑名→相对路径 | 目录结构，可自由增删 |
+| `import` | `inbox` / `pdf_mode` / `dedupe_by_hash` / `extra_sources` / `max_depth` | 导入源、PDF 提取或归档、幂等开关、额外源 |
+| `frontmatter` | `fields` / `status_new` / `date_format` | 元数据规范 |
+| `tags` | `rules`（tag+keywords）/ `extract_hashtags` / `max_tags` | 打标规则表 |
+| `linking` | `strategy` / `min_keywords` / `max_links_per_note` / `gen_index` / `include_c` | 双链策略（关键词阈值、链接上限、是否纳入 C 层） |
+| `naming` | `date_prefix` / `sanitize` / `max_len` | 文件名规范 |
+| `scheduler` | `interval_minutes` / `task_time` | 定时参数 |
+| `logging` | `log_dir` / `report_file` | 日志与报告目录 |
 
-## 与兵哥系统的关系
+**常用定制**：
 
-- 本工具是「兵哥知识库管理系统」的**通用化、开源、可配置**替代实现，保留了其核心思想
-  （四层架构、A→B 自动化、确定性建链），去掉了对豆包客户端键鼠模拟的依赖，
-  改为本地规则引擎 + 可选 AI 提炼（提示词模板已内置在 D 层，可对接任意 AI）。
-- 若希望自动调用 AI 提炼，可把 D 层「豆包知识提炼提示词」接入自己的 AI 工作流，
-  程序负责流程编排，AI 负责内容提炼。
+- 改标签体系：编辑 `tags.rules`（如新增「轨道交通」「电力电子」规则，仓库已内置示例）。
+- 调双链密度：`linking.min_keywords`（共享关键词阈值）、`linking.max_links_per_note`（每篇链接上限）。
+- 对接自己的 AI：把 D 层「豆包知识提炼提示词」换成任意 LLM 工作流，程序只编排流程、不依赖豆包 API。
+- 加导入源：`import.extra_sources` 增加扫描目录。
+
+## 数据流与幂等机制
+
+1. **内容去重**：每个文件算 SHA-256 存入 `.kb_registry.json`，重复内容直接跳过。
+2. **合并而非覆盖**：`frontmatter.ensure_frontmatter()` 保留用户字段，只更新规范字段；链接引擎只追加缺失链接。
+3. **原子写**：笔记/注册表均「写 `.tmp` → `os.replace`」，避免半截文件。
+4. **提交顺序**：源文件「移动→写笔记→登记」严格有序，任一步失败都不会留下「未登记却已处理」的重复导入隐患。
+5. **编码容错**：UTF-8/GBK 自动探测；YAML 缺失时回退 JSON 配置与文本 frontmatter 解析。
+6. **失败隔离**：单文件异常被捕获、计入报告，不阻断整体同步。
+
+## 扩展开发
+
+- **新增文档格式**：在 `importer.py` 的 `_extract_*_text` 加对应提取函数，并在 `include_exts`/`archive_exts` 注册扩展名。
+- **新增打标策略**：扩展 `Tagger` 或在 `tags.rules` 增规则；`linking.strategy` 已预留 `keywords/title_tags/none` 三种模式。
+- **替换 AI 提炼后端**：`doubao_automation.refine_loop` 是 A→B 提炼的唯一耦合点，可改为调用本地 LLM API，把 `build_prompt/parse_refined_note` 复用即可。
+- **自定义界面**：GUI 走标准 HTTP API（`gui_server.py` 顶部有完整接口清单），前端 `gui_index.html` 可任意替换。
+- **跨平台**：除 `doubao_automation.py`（仅 Windows ctypes）与 `schedule` 的 `schtasks` 外，其余模块均可跨平台（Windows/macOS/Linux）。
+
+## 排错速查
+
+| 现象 | 可能原因 / 处理 |
+| --- | --- |
+| `检测到 YAML 配置文件，但未安装 PyYAML` | `pip install pyyaml`，或改用 `.json` 配置 |
+| PDF 被直接归档而非提取正文 | 未装 PyMuPDF/pypdf，或 PDF 是扫描图；装 `PyMuPDF` 或 `pypdf` |
+| `docx` 仅归档 | 未装 `python-docx` |
+| 双链不生成 | 笔记共享关键词 < `min_keywords`(3)；检查正文 `**关键词**：` 行 / frontmatter tags |
+| AI 自动化点了没反应 | 权限不一致（豆包管理员、本程序普通权限 → UIPI 拦截）；用 `diagnostic()` 诊断并按提示统一权限；先按 F6 正确记录三坐标 |
+| 计划任务不执行 | 检查 `run_sync.bat`（chcp 65001 + sync）与 `schtasks /Query` |
+| 中文乱码 | 程序已统一 UTF-8，确认终端/编辑器编码为 UTF-8 |
 
 ## 环境要求
 
 - Python 3.8+（Windows / macOS / Linux）
 - Obsidian（可选，用于查看知识库与关系图谱）
 - 依赖：PyYAML、PyMuPDF（可选 python-docx / pypdf）
+
+## 许可证
+
+本项目采用仓库根目录 [LICENSE](LICENSE) 文件规定的开源协议。若未提供 LICENSE 文件，请在使用前联系作者确认授权范围。
