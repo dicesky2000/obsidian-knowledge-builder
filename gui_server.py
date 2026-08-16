@@ -1004,7 +1004,8 @@ class Handler(BaseHTTPRequestHandler):
             self._send_json({"ok": True, "files": _list_coord_files(),
                              "current": _state.get("coord_file") or DEFAULT_COORD_FILE})
         elif path in ("/api/init", "/api/open",
-                      "/api/open_path", "/api/open_report", "/api/exit"):
+                      "/api/open_path", "/api/open_report",
+                      "/api/open_knowledge_dir", "/api/exit"):
             # 兼容旧页面用 GET 触发这些操作
             self._action(path)
         else:
@@ -1064,7 +1065,8 @@ class Handler(BaseHTTPRequestHandler):
 
         path = self.path
         if path in ("/api/init", "/api/open",
-                    "/api/open_path", "/api/open_report", "/api/exit"):
+                    "/api/open_path", "/api/open_report",
+                    "/api/open_knowledge_dir", "/api/exit"):
             self._action(path, body)
         elif path == "/api/prompts":
             send = str(body.get("send_format") or "").strip()
@@ -1325,6 +1327,24 @@ class Handler(BaseHTTPRequestHandler):
             else:
                 self._send_json({"ok": False,
                                  "error": "该路径还不存在，请先在文件管理器中创建，或先点「① 创建知识库」"})
+        elif path == "/api/open_knowledge_dir":
+            # 打开知识提炼目录（B 层，03知识提炼，目录名跟随 kbconfig structure.B_知识提炼）
+            inbox, done, notes, logs = _debug_dirs()
+            if not notes:
+                self._send_json({"ok": False, "error": "请先填写并创建知识库"})
+                return
+            if os.path.isdir(notes):
+                try:
+                    if os.name == "nt":
+                        os.startfile(notes)  # noqa
+                    else:
+                        subprocess.Popen(["xdg-open", notes])
+                    self._send_json({"ok": True})
+                except Exception as e:
+                    self._send_json({"ok": False, "error": "打开失败：%s" % e})
+            else:
+                self._send_json({"ok": False,
+                                 "error": "「03知识提炼」目录还不存在，请先点「创建知识库」"})
         elif path == "/api/open_report":
             root = _state["root"]
             p = os.path.join(root, "处理日志", "处理报告.md")

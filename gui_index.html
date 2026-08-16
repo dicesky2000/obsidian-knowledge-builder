@@ -3,50 +3,162 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>知识库助手</title>
+<title>自动化知识库系统</title>
 <style>
   :root {
-    /* —— Swiss / 极简：石板灰底 + 翠绿行动色（ui-ux-pro-max 推荐） —— */
-    --bg: #f8fafc;
-    --surface: #ffffff;
-    --ink: #0f172a;            /* 近黑墨，正文高对比 */
-    --muted: #64748b;
-    --primary: #334155;        /* 石板灰：主结构/标题 */
-    --primary-d: #1e293b;
-    --primary-soft: #eef2f6;
-    --accent: #059669;         /* 翠绿：唯一"执行"主色 */
-    --accent-d: #047857;
-    --accent-soft: #ecfdf5;
-    --danger: #dc2626;
-    --danger-soft: #fef2f2;
-    --line: #e2e8f0;
-    --line-2: #cbd5e1;
-    --ring: #94a3b8;
+    /* —— 冰蓝玻璃拟态 · 克制版（Glassmorphism, restrained）—— */
+    --bg: #e7f0fa;
+    --bg-gradient: linear-gradient(160deg,#eaf2fb 0%,#e2edf9 45%,#d9e9f8 100%);
+    --surface: rgba(255,255,255,.62);      /* 玻璃面板面 */
+    --surface-solid: #ffffff;               /* 控件近实心面 */
+    --surface-2: rgba(255,255,255,.45);
+    --ink: #12304f;
+    --muted: #5a7a9a;
+    --primary: #1e3a5f;
+    --primary-d: #142a4a;
+    --primary-soft: rgba(255,255,255,.55);
+    --accent: #3d8bfd;                      /* 冰蓝：唯一执行色 */
+    --accent-d: #2f76e8;
+    --accent-soft: rgba(61,139,253,.12);
+    --danger: #e5484d;
+    --danger-soft: rgba(229,72,77,.10);
+    --warn: #c8812a;
+    --warn-soft: rgba(200,129,42,.12);
+    --line: rgba(255,255,255,.70);          /* 细白边（玻璃描边） */
+    --line-2: rgba(30,58,95,.14);
+    --ring: #3d8bfd;
+    --glass-blur: blur(18px) saturate(160%);
+    --shadow-sm: 0 2px 10px rgba(31,90,160,.10);
+    --shadow-md: 0 10px 34px rgba(31,90,160,.16);
+    --radius: 16px;                         /* 玻璃面板 */
+    --radius-sm: 10px;                      /* 控件 */
+    --mask: rgba(15,23,42,.45);
+    --guide-font-size: 12px;                /* 使用说明基准字号（可 A-/A+ 缩放，±5 档） */
     --font: "Microsoft YaHei", "PingFang SC", system-ui, -apple-system,
             BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-    --shadow-sm: 0 1px 2px rgba(15,23,42,.04), 0 1px 3px rgba(15,23,42,.06);
-    --shadow-md: 0 6px 20px rgba(15,23,42,.07);
-    --radius: 14px;
+    --font-mono: "Cascadia Code", Consolas, "Courier New", monospace;
+    --log-bg: #0f172a;                      /* 日志：永远深色代码区 */
+    --log-fg: #cbd5e1;
+    --log-border: #020617;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #0d1a2e;
+      --bg-gradient: linear-gradient(160deg,#0a1322 0%,#0e1c33 50%,#132640 100%);
+      --surface: rgba(26,44,70,.55);
+      --surface-solid: #16263d;
+      --surface-2: rgba(255,255,255,.06);
+      --ink: #e8f1fb;
+      --muted: #93aec9;
+      --primary: #4a6f9e;
+      --primary-d: #36577f;
+      --primary-soft: rgba(255,255,255,.08);
+      --accent: #6db6ff;
+      --accent-d: #4f9cf9;
+      --accent-soft: rgba(109,182,255,.16);
+      --danger: #f27079;
+      --danger-soft: rgba(242,112,121,.14);
+      --warn: #e0b25c;
+      --warn-soft: rgba(224,178,92,.15);
+      --line: rgba(255,255,255,.14);
+      --line-2: rgba(255,255,255,.08);
+      --ring: #6db6ff;
+      --glass-blur: blur(18px) saturate(140%);
+      --shadow-sm: 0 2px 12px rgba(0,0,0,.35);
+      --shadow-md: 0 14px 40px rgba(0,0,0,.45);
+      --mask: rgba(0,0,0,.58);
+      --log-bg: #0b1220;
+      --log-fg: #d7e0e8;
+      --log-border: #1d2a37;
+    }
   }
   * { box-sizing: border-box; margin: 0; padding: 0; }
   html { scroll-behavior: smooth; }
   body {
-    background: var(--bg);
+    background: var(--bg-gradient) fixed;
     color: var(--ink);
     font-family: var(--font);
-    line-height: 1.6;
+    line-height: 1.7;
     font-size: 15px;
     -webkit-font-smoothing: antialiased;
     text-rendering: optimizeLegibility;
   }
 
-  /* ---------- 顶部应用栏（吸顶） ---------- */
+  /* ---------- 工具类（新增，纯装饰） ---------- */
+  .glass {
+    background: var(--surface);
+    backdrop-filter: var(--glass-blur);
+    -webkit-backdrop-filter: var(--glass-blur);
+    border: 1px solid var(--line);
+  }
+  .mono { font-family: var(--font-mono); }
+  .txtarea {
+    width: 100%; box-sizing: border-box; resize: vertical;
+    font-family: var(--font-mono); font-size: 13px; line-height: 1.5;
+    border: 1px solid var(--line); border-radius: var(--radius-sm);
+    padding: 10px 12px; color: var(--ink); background: var(--surface-solid);
+    outline: none;
+  }
+  .txtarea:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+  .txtarea.gen-spec { color: var(--muted); background: var(--surface-2); }
+  .form-label { font-size: 14px; font-weight: 600; }
+  .divider { margin-top: 14px; border-top: 1px dashed var(--line-2); padding-top: 12px; }
+  /* 折叠面板（发送格式 / B 层只读参考，默认收起） */
+  .fold {
+    border: 1px solid var(--line); border-radius: var(--radius-sm);
+    overflow: hidden; background: var(--surface-2); margin-top: 14px;
+  }
+  .fold summary {
+    list-style: none; cursor: pointer; user-select: none;
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 10px 12px; font-size: 13.5px; font-weight: 600; color: var(--ink);
+  }
+  .fold summary::-webkit-details-marker { display: none; }
+  .fold[open] > summary .guide-arrow { transform: rotate(180deg); }
+  .fold-body { padding: 12px; border-top: 1px solid var(--line); }
+  /* 流程步骤列表（豆包自动整理使用说明） */
+  .steps { display: grid; gap: 8px; margin: 4px 0 12px; }
+  .step {
+    display: flex; gap: 10px; align-items: flex-start;
+    background: var(--surface-2);
+    border: 1px solid var(--line); border-radius: var(--radius-sm);
+    padding: 9px 13px; font-size: 1.12em; line-height: 1.65;
+  }
+  .step-no {
+    flex: none; width: 1.7em; height: 1.7em; margin-top: 1px;
+    display: inline-flex; align-items: center; justify-content: center;
+    background: var(--accent); color: #fff; border-radius: 50%;
+    font-size: 0.96em; font-weight: 700;
+  }
+  .step b { color: var(--ink); font-weight: 600; }
+  .step .step-txt { flex: 1; color: var(--muted); }
+  .step .step-txt b { color: var(--ink); }
+  /* 注意事项提示条 */
+  .notice {
+    display: flex; gap: 8px; align-items: flex-start;
+    background: var(--warn-soft); border: 1px solid var(--warn);
+    border-radius: var(--radius-sm); padding: 9px 13px;
+    font-size: 1.08em; line-height: 1.65; color: var(--ink);
+    margin-top: 10px;
+  }
+  .notice .notice-ic { flex: none; font-size: 1em; }
+  .notice b { color: var(--warn); font-weight: 700; }
+  .dropzone {
+    margin-top: 10px; border: 2px dashed var(--line-2); border-radius: var(--radius-sm);
+    padding: 20px 12px; text-align: center; color: var(--muted); font-size: 14px;
+    background: var(--surface-2);
+    transition: border-color .15s ease, background .15s ease, color .15s ease;
+  }
+  input[type=checkbox], input[type=radio] { accent-color: var(--accent); }
+
+  /* ---------- 顶部应用栏（吸顶，玻璃） ---------- */
   .appbar {
     position: sticky; top: 0; z-index: 30;
     display: flex; align-items: center; justify-content: space-between;
     gap: 16px; padding: 12px 22px;
-    background: rgba(255,255,255,.82);
-    backdrop-filter: saturate(180%) blur(10px);
+    background: var(--surface);
+    backdrop-filter: var(--glass-blur);
+    -webkit-backdrop-filter: var(--glass-blur);
     border-bottom: 1px solid var(--line);
   }
   .brand { display: inline-flex; align-items: center; gap: 12px; }
@@ -63,25 +175,113 @@
   .appbar-status {
     display: inline-flex; align-items: center; gap: 7px;
     font-size: 12.5px; color: var(--muted);
-    background: var(--surface); border: 1px solid var(--line);
+    background: var(--surface-solid); border: 1px solid var(--line);
     padding: 6px 12px; border-radius: 999px;
   }
   .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
 
-  .wrap { max-width: 920px; margin: 0 auto; padding: 22px 18px 64px; }
+  .wrap {
+    max-width: var(--wrap-w, 1240px); margin: 0 auto; padding: 22px 18px 64px;
+    position: relative;
+  }
+
+  /* ---------- 左侧独立说明区（可折叠，玻璃面板，浮动可平移） ---------- */
+  .side {
+    position: fixed; top: 78px; z-index: 20;
+    left: calc(max(0px, (100vw - var(--wrap-w, 1240px)) / 2) + 18px + var(--side-x, 0px));
+    width: var(--side-w, 260px);
+  }
+  /* 主界面自动避让：始终不与侧边栏重叠 */
+  .main { position: relative; margin-left: calc(var(--side-x, 0px) + var(--side-w, 260px) + 22px); min-width: 0; }
+  /* 拖拽手柄 */
+  .side-resize, .main-resize {
+    position: absolute; top: 0; bottom: 0; width: 10px;
+    cursor: col-resize; z-index: 25;
+  }
+  .side-resize-l { left: -6px; }
+  .side-resize-r { right: -6px; }
+  .main-resize { right: -6px; }
+  .side-resize::before, .main-resize::before {
+    content: ""; position: absolute; top: 0; bottom: 0; left: 50%;
+    transform: translateX(-50%); width: 3px; border-radius: 3px;
+    background: transparent; transition: background .15s ease;
+  }
+  .side-resize:hover::before, .side-resize.dragging::before,
+  .main-resize:hover::before, .main-resize.dragging::before { background: var(--accent); }
+  .guide {
+    background: var(--surface);
+    backdrop-filter: var(--glass-blur);
+    -webkit-backdrop-filter: var(--glass-blur);
+    border: 1px solid var(--line); border-radius: var(--radius);
+    box-shadow: var(--shadow-sm);
+    max-height: calc(100vh - 96px);
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    font-size: var(--guide-font-size);   /* 基准字号，A-/A+ 缩放 */
+  }
+  .guide summary {
+    list-style: none; cursor: pointer; user-select: none;
+    position: sticky; top: 0; z-index: 1;
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 14px 16px; font-size: 1.17em; font-weight: 700; color: var(--ink);
+    background: var(--surface-2);
+  }
+  .guide summary::-webkit-details-marker { display: none; }
+  .guide-sum-r { display: inline-flex; align-items: center; gap: 10px; }
+  .guide-font-ctl { display: inline-flex; gap: 4px; }
+  .guide-font-ctl button {
+    border: 1px solid var(--line-2); background: var(--surface-solid); color: var(--primary);
+    border-radius: 6px; padding: 1px 8px; font-size: 1em; font-weight: 700; font-family: var(--font);
+    cursor: pointer; line-height: 1.5;
+  }
+  .guide-font-ctl button:hover { background: var(--primary-soft); }
+  .guide-font-ctl button:disabled { opacity: .4; cursor: not-allowed; }
+  .guide-arrow { transition: transform .2s ease; font-size: 1em; color: var(--muted); }
+  .guide[open] > summary .guide-arrow,
+  .guide-item[open] > summary .guide-arrow { transform: rotate(180deg); }
+  .guide-body { padding: 6px 16px 16px; }
+  .guide-body .hint { font-size: 1em; }
+  .guide-body .steps { margin-top: 2px; }
+  /* 目录项（01-05 可折叠小节） */
+  .guide-toc { margin-top: 10px; border-top: 1px solid var(--line); padding-top: 8px; }
+  .guide-item { border: 1px solid var(--line); border-radius: var(--radius-sm); margin-bottom: 6px; overflow: hidden; background: var(--surface-2); }
+  .guide-item summary {
+    list-style: none; cursor: pointer; user-select: none;
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 9px 12px; font-size: 1.04em; font-weight: 600; color: var(--ink);
+  }
+  .guide-item summary::-webkit-details-marker { display: none; }
+  .guide-item-body { padding: 4px 12px 11px; font-size: 1em; line-height: 1.7; color: var(--muted); }
+  .guide-item-body b { color: var(--ink); font-weight: 600; }
+  /* 二级子标题（03 豆包整理内：轮询复制/坐标文件/发送格式/B层） */
+  .guide-sub { border-bottom: 1px solid var(--line); }
+  .guide-sub:last-child { border-bottom: none; }
+  .guide-sub summary {
+    list-style: none; cursor: pointer; user-select: none;
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 8px 2px; font-size: 1em; font-weight: 600; color: var(--ink);
+  }
+  .guide-sub summary::-webkit-details-marker { display: none; }
+  .guide-sub[open] > summary .guide-arrow { transform: rotate(180deg); }
+  .guide-sub-body { padding: 2px 2px 10px; font-size: 1em; line-height: 1.7; color: var(--muted); }
+  .guide-sub-body b { color: var(--ink); font-weight: 600; }
 
   /* ---------- 连接错误条 ---------- */
   .errbar {
     display: none; background: var(--danger-soft);
-    border: 1px solid #fecaca; color: var(--danger);
+    border: 1px solid var(--danger); color: var(--danger);
     border-radius: var(--radius); padding: 12px 16px; font-size: 14px; margin-bottom: 18px;
   }
 
-  /* ---------- 卡片：干净网格质感 ---------- */
+  /* ---------- 卡片：玻璃面板 ---------- */
   .card {
-    position: relative; background: var(--surface);
-    border: 1px solid var(--line); border-radius: var(--radius);
-    padding: 20px 22px 22px; margin-top: 16px;
+    position: relative;
+    background: var(--surface);
+    backdrop-filter: var(--glass-blur);
+    -webkit-backdrop-filter: var(--glass-blur);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    padding: 22px 24px; margin-top: 18px;
     box-shadow: var(--shadow-sm);
     animation: rise .45s ease both;
   }
@@ -111,10 +311,10 @@
   .hint b { color: var(--ink); font-weight: 600; }
 
   input[type=text], input[type=number], select {
-    border: 1px solid var(--line); border-radius: 10px;
+    border: 1px solid var(--line); border-radius: var(--radius-sm);
     padding: 10px 12px; font-size: 14px; font-family: var(--font);
     outline: none; flex: 1; min-width: 200px; color: var(--ink);
-    background: #fff; transition: border-color .15s ease, box-shadow .15s ease;
+    background: var(--surface-solid); transition: border-color .15s ease, box-shadow .15s ease;
   }
   input[type=text]:focus, input[type=number]:focus, select:focus {
     border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft);
@@ -122,20 +322,20 @@
 
   /* ---------- 按钮体系 ---------- */
   .btn {
-    border: 1px solid transparent; border-radius: 10px;
+    border: 1px solid transparent; border-radius: var(--radius-sm);
     padding: 10px 16px; font-size: 14px; font-weight: 600; font-family: var(--font);
     cursor: pointer; color: #fff; background: var(--primary);
     transition: transform .12s ease, background .15s ease, box-shadow .15s ease, border-color .15s ease;
   }
   .btn:hover { background: var(--primary-d); transform: translateY(-1px); }
   .btn:active { transform: translateY(0); }
-  .btn.go { background: var(--accent); box-shadow: 0 2px 8px rgba(5,150,105,.25); }
+  .btn.go { background: var(--accent); box-shadow: 0 2px 8px var(--accent-soft); }
   .btn.go:hover { background: var(--accent-d); }
-  .btn.ghost { background: #fff; color: var(--primary); border-color: var(--line-2); }
-  .btn.ghost:hover { background: var(--primary-soft); border-color: var(--primary); }
-  .btn.soft { background: #f1f5f9; color: #475569; border-color: transparent; }
-  .btn.soft:hover { background: #e2e8f0; }
-  .btn.danger { background: #fff; color: var(--danger); border-color: #fecaca; }
+  .btn.ghost { background: var(--primary-soft); color: var(--primary); border-color: var(--line); }
+  .btn.ghost:hover { background: var(--surface-solid); border-color: var(--accent); }
+  .btn.soft { background: var(--surface-2); color: var(--muted); border-color: transparent; }
+  .btn.soft:hover { background: var(--primary-soft); color: var(--primary); }
+  .btn.danger { background: var(--surface-solid); color: var(--danger); border-color: var(--danger-soft); }
   .btn.danger:hover { background: var(--danger-soft); }
   .btn:disabled { opacity: .45; cursor: not-allowed; transform: none; }
   .btn:focus-visible, input:focus-visible, select:focus-visible,
@@ -146,8 +346,8 @@
   /* ---------- 分组容器（豆包自动整理功能栏） ---------- */
   .btn-group {
     display: flex; flex-wrap: wrap; align-items: center; gap: 8px;
-    border: 1px dashed var(--line-2); border-radius: 12px;
-    padding: 10px 12px; margin-top: 10px; background: #fbfdff;
+    border: 1px dashed var(--line-2); border-radius: var(--radius-sm);
+    padding: 10px 12px; margin-top: 10px; background: var(--surface-2);
   }
   .btn-group .grp-title {
     flex: 0 0 100%; display: flex; align-items: center; gap: 6px;
@@ -162,23 +362,23 @@
   .inbox-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; gap: 8px; flex-wrap: wrap; }
   .inbox-head span { font-size: 13px; color: var(--muted); }
   .inbox-list {
-    border: 1px solid var(--line); border-radius: 12px;
-    max-height: 280px; overflow-y: auto; background: #fff;
+    border: 1px solid var(--line); border-radius: var(--radius-sm);
+    max-height: 280px; overflow-y: auto; background: var(--surface-2);
   }
   .inbox-item {
     display: flex; align-items: center; gap: 10px;
-    padding: 9px 13px; border-bottom: 1px solid #f1f5f9; font-size: 13.5px;
+    padding: 9px 13px; border-bottom: 1px solid var(--line-2); font-size: 13.5px;
     transition: background .12s ease;
   }
-  .inbox-item:hover { background: #f8fafc; }
+  .inbox-item:hover { background: var(--primary-soft); }
   .inbox-item:last-child { border-bottom: none; }
-  .inbox-item input { width: 16px; height: 16px; accent-color: var(--accent); cursor: pointer; }
+  .inbox-item input { width: 16px; height: 16px; cursor: pointer; }
   .inbox-item .nm { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .inbox-item .sz { color: var(--muted); font-size: 12px; width: 70px; text-align: right; }
+  .inbox-item .sz { color: var(--muted); font-size: 12px; width: 70px; text-align: right; font-family: var(--font-mono); }
   .inbox-item .tm { color: var(--muted); font-size: 12px; width: 130px; text-align: right; }
   .src-badge {
     font-size: 11px; color: var(--accent-d); background: var(--accent-soft);
-    border: 1px solid #bbf7d0; border-radius: 6px; padding: 1px 7px;
+    border: 1px solid var(--accent-soft); border-radius: 6px; padding: 1px 7px;
     margin-right: 8px; white-space: nowrap;
   }
   .empty { color: var(--muted); font-size: 13px; padding: 18px; text-align: center; }
@@ -188,24 +388,24 @@
   .status-line b { color: var(--ink); }
   .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 10px; }
   .stat {
-    background: linear-gradient(180deg, #ffffff, #f8fafc);
-    border: 1px solid var(--line); border-radius: 12px; padding: 14px 12px; text-align: center;
+    background: var(--surface-2);
+    border: 1px solid var(--line); border-radius: var(--radius-sm); padding: 14px 12px; text-align: center;
   }
-  .stat b { font-size: 24px; font-weight: 700; color: var(--accent); display: block; line-height: 1.1; }
+  .stat b { font-size: 24px; font-weight: 700; color: var(--accent); display: block; line-height: 1.1; font-family: var(--font-mono); }
   .stat span { font-size: 12px; color: var(--muted); }
 
   /* ---------- 状态标签 ---------- */
   .tag { display: inline-block; padding: 3px 11px; border-radius: 999px; font-size: 12px; font-weight: 600; }
   .tag.on { background: var(--accent-soft); color: var(--accent-d); }
-  .tag.off { background: #fef2f2; color: var(--danger); }
+  .tag.off { background: var(--danger-soft); color: var(--danger); }
 
-  /* ---------- 日志框（保留深色，便于阅读） ---------- */
+  /* ---------- 日志框（永远深色代码区，便于阅读） ---------- */
   .logbox {
-    background: #0f172a; color: #cbd5e1;
-    border-radius: 12px; padding: 14px; height: 48vh; overflow-y: auto;
-    font-family: "Cascadia Code", Consolas, "Courier New", monospace; font-size: 12.5px;
+    background: var(--log-bg); color: var(--log-fg);
+    border-radius: var(--radius-sm); padding: 14px; height: 48vh; overflow-y: auto;
+    font-family: var(--font-mono); font-size: 12.5px;
     line-height: 1.7; white-space: pre-wrap; word-break: break-all;
-    border: 1px solid #020617;
+    border: 1px solid var(--log-border);
   }
 
   /* ---------- 运行日志悬浮窗（可拖动 + 右下角缩放） ---------- */
@@ -214,6 +414,8 @@
     width: 520px; height: 56vh; min-width: 280px; min-height: 160px;
     display: flex; flex-direction: column;
     background: var(--surface);
+    backdrop-filter: var(--glass-blur);
+    -webkit-backdrop-filter: var(--glass-blur);
     border: 1px solid var(--line); border-radius: var(--radius);
     box-shadow: var(--shadow-md);
     overflow: hidden; resize: both;
@@ -221,13 +423,13 @@
   .logwin-head {
     flex: none; display: flex; align-items: center; justify-content: space-between;
     gap: 10px; padding: 8px 12px; cursor: move; user-select: none;
-    background: var(--primary-soft);
+    background: var(--surface-2);
     border-bottom: 1px solid var(--line);
     border-radius: calc(var(--radius) - 1px) calc(var(--radius) - 1px) 0 0;
   }
   .logwin-title { font-size: 13.5px; font-weight: 700; color: var(--ink); }
   .logwin-btn {
-    border: 1px solid var(--line-2); background: #fff; color: var(--primary);
+    border: 1px solid var(--line-2); background: var(--surface-solid); color: var(--primary);
     border-radius: 8px; padding: 2px 12px; font-size: 12px; font-weight: 600;
     font-family: var(--font); cursor: pointer;
   }
@@ -246,12 +448,12 @@
   /* ---------- 模态面板（回收站） ---------- */
   .modal-mask {
     position: fixed; inset: 0; z-index: 200;
-    background: rgba(15,23,42,.45);
+    background: var(--mask);
     display: flex; align-items: center; justify-content: center;
     padding: 20px;
   }
   .modal {
-    background: var(--surface); border: 1px solid var(--line);
+    background: var(--surface-solid); border: 1px solid var(--line);
     border-radius: var(--radius); box-shadow: var(--shadow-md);
     width: 560px; max-width: 100%; max-height: 80vh;
     display: flex; flex-direction: column; overflow: hidden;
@@ -268,10 +470,12 @@
     display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap;
   }
 
-  /* ---------- 提示横幅 / 页脚 ---------- */
+  /* ---------- 提示横幅 / 页脚 ----------
+     #toast 背景/显示由 JS 内联接管，本层不写 background/display 以免冲突；
+     下方仅作初始兜底。 */
   .toast {
     position: fixed; top: 18px; left: 50%; transform: translateX(-50%);
-    background: #0f172a; color: #fff; padding: 10px 22px; border-radius: 10px;
+    background: #1e293b; color: #fff; padding: 10px 22px; border-radius: 10px;
     font-size: 14px; box-shadow: 0 6px 18px rgba(0,0,0,.22);
     display: none; z-index: 99;
   }
@@ -280,7 +484,18 @@
 
   @keyframes rise { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
   @media (prefers-reduced-motion: reduce) {
-    .card, .btn, html { animation: none !important; transition: none !important; scroll-behavior: auto !important; }
+    .card, .btn, .dropzone, .dot, html {
+      animation: none !important; transition: none !important; scroll-behavior: auto !important;
+    }
+  }
+  @media (max-width: 960px) {
+    .wrap { max-width: 100%; }
+    .side {
+      position: static; left: auto; top: auto; width: auto !important;
+      margin: 0 0 4px;
+    }
+    .main { margin-left: 0; }
+    .side-resize, .main-resize { display: none; }
   }
   @media (max-width: 560px) {
     .wrap { padding: 16px 12px 48px; }
@@ -288,6 +503,7 @@
     .brand-text h1 { font-size: 15px; }
     input[type=text], input[type=number], select { min-width: 140px; }
   }
+
 </style>
 </head>
 <body>
@@ -301,7 +517,7 @@
       <path d="M12 4v15"/>
     </svg>
     <div class="brand-text">
-      <h1>知识库助手</h1>
+      <h1>自动化知识库系统</h1>
       <p>把零散资料，自动整理成你自己的知识库</p>
     </div>
   </div>
@@ -311,13 +527,78 @@
 </header>
 
 <div class="wrap">
+  <!-- 左侧独立说明区（可折叠） -->
+  <aside class="side">
+    <details class="guide">
+      <summary>
+        <span>使用说明</span>
+        <span class="guide-sum-r">
+          <span class="guide-font-ctl" title="字体缩放（±5 档）">
+            <button type="button" id="fontDec" aria-label="缩小字体">A−</button>
+            <button type="button" id="fontInc" aria-label="放大字体">A+</button>
+          </span>
+          <span class="guide-arrow">▾</span>
+        </span>
+      </summary>
+      <div class="guide-body">
+        <div class="hint" style="margin-bottom:4px"><b>使用流程</b>（首次使用约 2 分钟）</div>
+        <div class="steps">
+          <div class="step"><span class="step-no">1</span><div class="step-txt"><b>放素材</b> —— 把资料放进知识库的 <b>01未处理</b> 文件夹（豆包会自动扫描这一处）。</div></div>
+          <div class="step"><span class="step-no">2</span><div class="step-txt"><b>选「启动途径」</b> —— 下方选好网页版或桌面版：<b>网页版</b>点「开始」后自动打开浏览器访问豆包（需已登录）；<b>桌面版</b>需您先自行打开豆包客户端。</div></div>
+          <div class="step"><span class="step-no">3</span><div class="step-txt"><b>记录坐标（仅首次）</b> —— 鼠标移到豆包对应位置按 <b>F6</b>，依次记录「输入框 / 下翻 / 复制」三个按钮位置。</div></div>
+          <div class="step"><span class="step-no">4</span><div class="step-txt"><b>点「开始」</b> —— 程序把豆包窗口切前台并最大化，按 D 层提示词模板把素材发给豆包，自动复制回复生成 B 层笔记，素材随之移入「02已处理」。</div></div>
+        </div>
+        <div class="hint" style="margin-bottom:4px"><b>素材发送方式</b></div>
+        <div class="hint" style="margin-top:2px">• <b>.md / .txt</b>：提取文字发送；<b>其他文件</b>（word / pdf / excel / ppt / 图片等）：整文件直发豆包（输入框支持粘贴附件，随后自动附上「发送格式」提示词）。</div>
+        <div class="notice"><span class="notice-ic">⚠</span><div>整理期间<b>不要动鼠标和键盘</b>，避免干扰豆包操作。</div></div>
+
+        <div class="guide-toc">
+          <details class="guide-item">
+            <summary>01 · 设置知识库路径 <span class="guide-arrow">▾</span></summary>
+            <div class="guide-item-body">选一个空文件夹或新文件夹，程序会在里面自动创建「01未处理 / 02已处理 / 03知识提炼 / 04知识聚合 / 05规则模板」等标准结构。填好后点「保存位置」，再点「创建知识库」即可一键生成；也可直接点「打开该路径」在文件管理器里查看或新建。</div>
+          </details>
+          <details class="guide-item">
+            <summary>02 · 待处理资料列表 <span class="guide-arrow">▾</span></summary>
+            <div class="guide-item-body">把资料放进「01未处理」后，用「豆包自动整理」批量提炼成标准笔记并自动建立知识链接。支持选择文件夹 / 选择文件 / 直接拖入。</div>
+          </details>
+          <details class="guide-item">
+            <summary>03 · 豆包自动整理 <span class="guide-arrow">▾</span></summary>
+            <div class="guide-item-body">
+              <details class="guide-sub">
+                <summary>轮询复制与超时 <span class="guide-arrow">▾</span></summary>
+                <div class="guide-sub-body">发送后程序会<b>轮询复制</b>：不断点复制按钮，直到剪贴板出现豆包的新回复才输出笔记；「等待豆包生成」数值×3 作<b>超时兜底</b>（默认 30 秒，超时按当前内容继续）。</div>
+              </details>
+              <details class="guide-sub">
+                <summary>坐标文件 <span class="guide-arrow">▾</span></summary>
+                <div class="guide-sub-body">坐标只需记录一次并保存为文件（可存多套，如"家用电脑"、"办公室"），下次直接用「使用该文件」切换即可，无需重新记录。</div>
+              </details>
+              <details class="guide-sub">
+                <summary>发送格式 <span class="guide-arrow">▾</span></summary>
+                <div class="guide-sub-body">「发送格式」是发给豆包的完整提示词，<b>{素材内容}</b> 处会自动替换为素材正文（文件直发时替换为文件名说明），保存后写回知识库 <b>05规则模板/</b> 目录。</div>
+              </details>
+              <details class="guide-sub">
+                <summary>B层笔记结构 <span class="guide-arrow">▾</span></summary>
+                <div class="guide-sub-body">B 层笔记的固定组成部分与拼接方式依据 D 层规范，<b>不可编辑</b>；豆包按「发送格式」提示词严格生成，程序侧仅负责解析一句话总结、组装文件名并保存。</div>
+              </details>
+            </div>
+          </details>
+          <details class="guide-item">
+            <summary>04 · 高级设置 <span class="guide-arrow">▾</span></summary>
+            <div class="guide-item-body">开启调试模式后，豆包整理将<b>跳过链接引擎 / 处理报告</b>；点「复位」可撤销调试期间的全部操作：删除新建的笔记/日志，并把已处理素材移回 <b>01未处理</b>。调试期请用网页「豆包自动整理」，勿用命令行 sync（会污染既有笔记的相关笔记区块）。</div>
+          </details>
+        </div>
+      </div>
+    </details>
+  </aside>
+
+  <div class="main">
   <div class="errbar" id="errbar">
-    ⚠ 无法连接知识库助手服务 —— 请先双击「launch-kb-assistant.bat」，然后刷新本页面。
+    ⚠ 无法连接自动化知识库系统服务 —— 请先双击「launch-kb-assistant.bat」，然后刷新本页面。
   </div>
 
   <!-- ① 知识库位置 -->
   <div class="card">
-    <h2><span class="cat-no">01</span>知识库放在哪里</h2>
+    <h2><span class="cat-no">01</span>设置知识库路径</h2>
     <div class="row">
       <input type="text" id="root" placeholder="例如：D:\我的知识库" style="flex:1">
       <button class="btn ghost" id="btnSetRoot">保存位置</button>
@@ -326,18 +607,16 @@
     <div class="row" style="margin-top:10px">
       <button class="btn" id="btnInit">创建知识库</button>
     </div>
-    <div class="hint">选一个空文件夹或新文件夹，程序会在里面自动创建「01未处理 / 02已处理 / 03知识提炼 / 04知识聚合 / 05规则模板」等标准结构。填好后点「保存位置」，再点「创建知识库」即可一键生成；也可直接点「打开该路径」在文件管理器里查看或新建。</div>
   </div>
 
   <!-- 02 未处理资料 -->
   <div class="card">
-    <h2><span class="cat-no">02</span>未处理资料（01未处理，整理前可随时删减）</h2>
-    <div class="hint">把资料放进「01未处理」后，用下方「豆包自动整理」批量提炼成标准笔记并自动建立知识链接。</div>
+    <h2><span class="cat-no">02</span>待处理资料列表</h2>
     <div class="row" style="margin-top:10px">
       <button class="btn" id="btnPickFolder">选择资料文件夹</button>
       <button class="btn" id="btnPickFiles">选择资料文件</button>
     </div>
-    <div id="dropZone" style="margin-top:10px;border:2px dashed #94a3b8;border-radius:8px;padding:20px 12px;text-align:center;color:#64748b;font-size:14px;transition:all .15s">
+    <div id="dropZone" class="dropzone">
       把文件<b>拖到这里</b>，自动放入「01未处理」（支持多文件；同名文件自动改名不覆盖）
     </div>
     <input type="file" id="pickFolder" webkitdirectory style="display:none">
@@ -363,8 +642,6 @@
   <!-- ③ 豆包自动整理 -->
   <div class="card">
     <h2><span class="cat-no">03</span>豆包自动整理（让豆包帮你提炼笔记）</h2>
-    <div class="hint" style="margin-bottom:12px">流程：把素材放进知识库的 <b>01未处理</b> 文件夹（豆包会自动扫描这一处）→ 选好下方「启动途径」→ 点「开始」：<b>网页版</b>会自动打开浏览器访问豆包网页（需已登录），<b>桌面版</b>需您先自行打开豆包客户端，随后程序把豆包窗口切前台并最大化 → 按 D 层提示词模板把素材发给豆包，自动复制回复生成 B 层笔记（素材随之移入「02已处理」）。<b>.md/.txt</b> 提取文字发送；<b>其他文件（word/pdf/excel/ppt/图片等）整文件直发豆包</b>（输入框支持粘贴附件，随后自动附上「发送格式」提示词）。先记录三个按钮位置（鼠标移到豆包对应位置按 F6）。整理期间<b>不要动鼠标和键盘</b>。</div>
-
     <div class="status-line" id="coordStatus">坐标：未记录</div>
     <div class="btn-group">
       <span class="grp-title">启动途径</span>
@@ -380,9 +657,9 @@
     </div>
     <div class="btn-group">
       <span class="grp-title">坐标记录</span>
-      <button class="btn ghost" id="btnRecInput">记录输入框坐标</button>
-      <button class="btn ghost" id="btnRecScroll">记录下翻坐标</button>
-      <button class="btn ghost" id="btnRecCopy">记录复制坐标</button>
+      <button class="btn" id="btnRecInput">记录输入框坐标</button>
+      <button class="btn" id="btnRecScroll">记录下翻坐标</button>
+      <button class="btn" id="btnRecCopy">记录复制坐标</button>
       <button class="btn soft" id="btnCoordCancel" style="display:none">取消记录</button>
     </div>
     <div class="btn-group">
@@ -398,7 +675,6 @@
         <input type="number" id="dbWait" min="5" max="300" style="width:70px;min-width:0" value="30">
         秒
       </label>
-      <div class="hint" style="margin:2px 0 6px">发送后程序会<b>轮询复制</b>：不断点复制按钮，直到剪贴板出现豆包的新回复才输出笔记；此处数值×3 作<b>超时兜底</b>（默认 30 秒，超时按当前内容继续）。</div>
       <label style="font-size:14px">模拟点击循环次数
         <input type="number" id="dbMax" min="0" style="width:70px;min-width:0" value="1">
         次（0=全部处理）
@@ -407,30 +683,30 @@
     </div>
     <div class="btn-group" style="justify-content:flex-end">
       <span class="grp-title">执行</span>
+      <button class="btn ghost" id="btnOpenKnowledgePath">打开知识提炼路径</button>
       <button class="btn go" id="btnDoubaoStart" style="min-width:140px">开始豆包整理</button>
       <button class="btn danger" id="btnDoubaoStop" style="display:none">停止</button>
     </div>
     <input type="file" id="pickCoord" accept=".json,application/json" style="display:none">
-    <div class="hint">坐标只需记录一次并保存为文件（可存多套，如"家用电脑"、"办公室"），下次直接用「使用该文件」切换即可，无需重新记录。</div>
 
-    <!-- 提示词格式配置 -->
-    <div style="margin-top:14px;border-top:1px dashed #cbd5e1;padding-top:12px">
-      <div class="hint" style="margin-bottom:8px">「发送格式」是发给豆包的完整提示词，<b>{素材内容}</b> 处会自动替换为素材正文（文件直发时替换为文件名说明）。保存后写回知识库 <b>05规则模板/</b> 目录。</div>
-      <div style="margin-bottom:4px"><label style="font-size:14px;font-weight:600">发送格式（发给豆包的提示词）</label></div>
-      <textarea id="promptSend" rows="14" spellcheck="false"
-        style="width:100%;font-family:ui-monospace,Consolas,monospace;font-size:13px;line-height:1.5;resize:vertical;box-sizing:border-box"></textarea>
-      <div style="margin-top:8px">
-        <button class="btn" id="btnPromptSave">保存提示词格式</button>
+    <!-- 提示词格式配置（可折叠，默认收起） -->
+    <details class="fold">
+      <summary>发送格式（发给豆包的提示词） <span class="guide-arrow">▾</span></summary>
+      <div class="fold-body">
+        <textarea id="promptSend" rows="14" spellcheck="false" class="txtarea"></textarea>
+        <div style="margin-top:8px">
+          <button class="btn" id="btnPromptSave">保存提示词格式</button>
+        </div>
       </div>
-    </div>
+    </details>
 
-    <!-- B 层笔记生成逻辑与结构（只读参考） -->
-    <div style="margin-top:14px;border-top:1px dashed #cbd5e1;padding-top:12px">
-      <div style="margin-bottom:4px"><label style="font-size:14px;font-weight:600">B层知识提炼文件的生成逻辑与结构（只读参考）</label></div>
-      <div class="hint" style="margin-bottom:8px">以下为 B 层笔记的固定组成部分与拼接方式（依据 D 层规范），<b>不可编辑</b>；豆包按「发送格式」提示词严格生成，程序侧仅负责解析一句话总结、组装文件名并保存。</div>
-      <textarea id="genSpec" rows="18" readonly spellcheck="false"
-        style="width:100%;font-family:ui-monospace,Consolas,monospace;font-size:13px;line-height:1.5;resize:vertical;box-sizing:border-box;color:#475569;background:#f8fafc"></textarea>
-    </div>
+    <!-- B 层笔记生成逻辑与结构（只读参考，可折叠，默认收起） -->
+    <details class="fold">
+      <summary>B层知识提炼文件的生成逻辑与结构（只读参考） <span class="guide-arrow">▾</span></summary>
+      <div class="fold-body">
+        <textarea id="genSpec" rows="18" readonly spellcheck="false" class="txtarea gen-spec"></textarea>
+      </div>
+    </details>
 
     <div class="hint" id="dbTip" style="color:var(--accent-d);display:none">⏳ 正在等待您把鼠标移到指定位置……</div>
   </div>
@@ -439,8 +715,7 @@
   <div class="card">
     <h2><span class="cat-no">04</span>高级设置</h2>
     <div style="margin-top:4px">
-      <div style="margin-bottom:4px"><label style="font-size:14px;font-weight:600">调试模式</label></div>
-      <div class="hint" style="margin-bottom:8px">开启后，豆包整理将<b>跳过链接引擎 / 处理报告</b>；点「复位」可撤销调试期间的全部操作：删除新建的笔记/日志，并把已处理素材移回 <b>01未处理</b>。调试期请用网页「豆包自动整理」，勿用命令行 sync（会污染既有笔记的相关笔记区块）。</div>
+      <div style="margin-bottom:4px"><label class="form-label">调试模式</label></div>
       <div class="row">
         <label style="font-size:14px;margin-right:16px;display:flex;align-items:center;gap:6px"><input type="checkbox" id="debugEnabled">开启调试模式</label>
         <button class="btn danger" id="btnDebugReset" style="display:none">复位</button>
@@ -448,25 +723,10 @@
     </div>
   </div>
 
-  <!-- ⑤ 最近结果 -->
-  <div class="card">
-    <h2><span class="cat-no">05</span>最近一次处理结果</h2>
-    <div class="status-line" id="vaultStatus">知识库：未设置</div>
-    <div class="grid" id="statGrid">
-      <div class="stat"><b>—</b><span>导入文件</span></div>
-      <div class="stat"><b>—</b><span>新增笔记</span></div>
-      <div class="stat"><b>—</b><span>新增双链</span></div>
-      <div class="stat"><b>—</b><span>索引页</span></div>
-    </div>
-    <div class="row" style="margin-top:14px">
-      <button class="btn ghost" id="btnReport">查看完整处理报告</button>
-    </div>
-  </div>
-
   <!-- 运行日志（悬浮窗：可拖动、右下角缩放、可最小化；可嵌入页面原位固定） -->
   <div class="logwin" id="logWin">
     <div class="logwin-head" id="logWinHead">
-      <span class="logwin-title">运行日志</span>
+      <span class="logwin-title">05 运行日志</span>
       <span class="row" style="gap:6px">
         <button class="logwin-btn" id="btnLogDock">嵌入</button>
         <button class="logwin-btn" id="btnLogToggle">最小化</button>
@@ -478,9 +738,10 @@
   </div>
 
   <footer>
-    <button class="btn soft" id="btnExit">退出知识库助手</button>
+    <button class="btn soft" id="btnExit">退出自动化知识库系统</button>
     <p>所有资料只保存在您自己的电脑上，本程序不上传任何数据。</p>
   </footer>
+  </div>
 </div>
 
 <!-- 回收站模态 -->
@@ -516,6 +777,83 @@ let lastLogId = 0;
 let connected = true;
 let prevDoubaoRunning = false;   // 豆包运行状态下降沿检测
 let doubaoAudioCtx = null;       // Web Audio 单例（用户手势内创建/恢复）
+
+// ---- 使用说明：字体缩放（A−/A+，基准 12px，±5 档，范围 7~17px）----
+(function () {
+  const root = document.documentElement;
+  const F_MIN = 7, F_MAX = 17, F_STEP = 1, F_DEFAULT = 12;
+  const dec = $("fontDec"), inc = $("fontInc");
+  if (!dec || !inc) return;
+  function cur() {
+    const v = parseFloat(root.style.getPropertyValue("--guide-font-size"));
+    return isFinite(v) ? v : F_DEFAULT;
+  }
+  function sync(v) {
+    root.style.setProperty("--guide-font-size", v + "px");
+    dec.disabled = v <= F_MIN;
+    inc.disabled = v >= F_MAX;
+  }
+  dec.addEventListener("click", e => { e.stopPropagation(); sync(cur() - F_STEP); });
+  inc.addEventListener("click", e => { e.stopPropagation(); sync(cur() + F_STEP); });
+  sync(cur());
+})();
+
+// ---- 拖拽调整：左侧手柄=平移侧边栏位置；右侧手柄=调侧边栏宽；主界面右缘=缩放整体宽度 ----
+(function () {
+  const root = document.documentElement;
+  const side = document.querySelector(".side");
+  const main = document.querySelector(".main");
+  if (!side || !main) return;
+  let dragging = false, startX = 0, startV = 0, mode = "";
+
+  function curVar(name, def) {
+    const v = parseFloat(getComputedStyle(root).getPropertyValue(name));
+    return isFinite(v) ? v : def;
+  }
+  function setVar(name, v) { root.style.setProperty(name, v + "px"); }
+  function onMove(e) {
+    if (!dragging) return;
+    const dx = e.clientX - startX;
+    let v;
+    if (mode === "x") {           // 平移侧边栏：左拖=左移（--side-x 减小），范围 -120~260
+      v = Math.round(startV + dx);
+      v = Math.max(-120, Math.min(260, v));
+      setVar("--side-x", v);
+    } else if (mode === "w") {    // 调侧边栏宽度：200~520
+      v = Math.max(200, Math.min(520, Math.round(startV + dx)));
+      setVar("--side-w", v);
+    } else if (mode === "wrap") { // 缩放整体内容区宽度：900~1600
+      v = Math.max(900, Math.min(1600, Math.round(startV + dx)));
+      setVar("--wrap-w", v);
+    }
+    document.body.style.cursor = "col-resize";
+  }
+  function onUp() {
+    dragging = false;
+    document.body.style.cursor = "";
+    document.removeEventListener("mousemove", onMove);
+    document.removeEventListener("mouseup", onUp);
+  }
+  function start(e, m) {
+    if (e.button !== 0) return;
+    e.preventDefault();
+    dragging = true; startX = e.clientX; mode = m;
+    startV = m === "x" ? curVar("--side-x", 0)
+          : m === "w" ? curVar("--side-w", 260)
+          : curVar("--wrap-w", 1240);
+    document.addEventListener("mousemove", onMove);
+    document.addEventListener("mouseup", onUp);
+  }
+  function makeHandle(cls, m) {
+    const h = document.createElement("div");
+    h.className = cls;
+    h.addEventListener("mousedown", e => start(e, m));
+    return h;
+  }
+  side.appendChild(makeHandle("side-resize side-resize-l", "x"));
+  side.appendChild(makeHandle("side-resize side-resize-r", "w"));
+  main.appendChild(makeHandle("main-resize", "wrap"));
+})();
 
 function toast(msg, ok) {
   const t = $("toast");
@@ -620,21 +958,22 @@ function setButtons(disabled) {
 }
 
 function renderStatus(s) {
+  const vs = $("vaultStatus"), sg = $("statGrid");
   if (s.root) {
     let html = "知识库：" + "<b>" + s.root + "</b>"
       + (s.vault_exists ? "（已存在）" : "（尚未创建，请点上方「创建知识库」）");
     if (s.busy) html += "　<span style='color:#b45309'>⏳ 正在" + s.busy_action + "……</span>";
-    $("vaultStatus").innerHTML = html;
+    if (vs) vs.innerHTML = html;
   } else {
-    $("vaultStatus").textContent = "知识库：未设置";
+    if (vs) vs.textContent = "知识库：未设置";
   }
   setButtons(s.busy || !connected);
-  if (s.summary) {
+  if (s.summary && sg) {
     const map = { "导入文件数": 0, "新增笔记数": 1, "新增双链数": 2, "生成索引页数": 3 };
     const labels = ["导入文件", "新增笔记", "新增双链", "索引页"];
     const vals = ["—", "—", "—", "—"];
     for (const k in s.summary) if (k in map) vals[map[k]] = s.summary[k];
-    const cells = $("statGrid").querySelectorAll(".stat");
+    const cells = sg.querySelectorAll(".stat");
     cells.forEach((c, i) => { c.querySelector("b").textContent = vals[i]; c.querySelector("span").textContent = labels[i]; });
   }
 }
@@ -850,6 +1189,11 @@ $("btnOpenPath").onclick = async () => {
   toast(r ? (r.ok ? "已打开该路径" : (r.error || "打开失败")) : "无法连接服务", r && r.ok);
 };
 
+$("btnOpenKnowledgePath").onclick = async () => {
+  const r = await api("/api/open_knowledge_dir", {});
+  toast(r ? (r.ok ? "已打开知识提炼路径" : (r.error || "打开失败")) : "无法连接服务", r && r.ok);
+};
+
 $("btnInit").onclick = async () => {
   busy($("btnInit"), "创建中…");
   const r = await api("/api/init", {});
@@ -857,11 +1201,6 @@ $("btnInit").onclick = async () => {
   if (r && r.ok) toast("正在创建知识库，请看下方日志");
   else if (!r) toast("无法连接服务，请先双击启动 bat", false);
   else toast(r.error || "失败", false);
-};
-
-$("btnReport").onclick = async () => {
-  const r = await api("/api/open_report", {});
-  toast(r ? (r.ok ? "已打开处理报告" : (r.error || "还没有报告")) : "无法连接服务", r && r.ok);
 };
 
 $("btnPickFolder").onclick = () => $("pickFolder").click();
@@ -1178,7 +1517,7 @@ $("btnDbAutoMatch").onclick = async () => {
 };
 
 $("btnExit").onclick = async () => {
-  if (!confirm("确定要退出知识库助手吗？")) return;
+  if (!confirm("确定要退出自动化知识库系统吗？")) return;
   await api("/api/exit", {});
   toast("已退出，可关闭此页面");
   setTimeout(() => window.close(), 800);
